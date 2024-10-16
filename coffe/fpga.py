@@ -157,6 +157,16 @@ class _Specs:
         self.gen_routing_metal_pitch  = arch_params_dict['gen_routing_metal_pitch']
         self.gen_routing_metal_layers = arch_params_dict['gen_routing_metal_layers']
 
+        #Quick code to correct model path if it repeats coffe again or uses ~
+        #Sometimes it would do something linke /home/user/COFFE/~/COFFE/etc
+        #This would lead to an error with hspice
+        if '~' in self.model_path:
+            subpaths = self.model_path.split('~')
+            print(subpaths)
+            lastpath = '~' + subpaths[-1]
+            self.model_path = lastpath
+        print('model_path: ' + self.model_path)
+
         
         
 class _SizableCircuit:
