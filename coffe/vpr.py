@@ -482,8 +482,8 @@ def print_vpr_file_memory(vpr_file, fpga_inst):
 	vpr_file.write("      <clock name=\"clk\" num_pins=\"1\"/>\n")
 
 	# I start with the widest single port mode and increase depth
-	current_width = memory_max_width
-	current_depth = memory_max_depth / current_width
+	current_width = int(memory_max_width)
+	current_depth = int(memory_max_depth / current_width)
 	current_address_bits = fpga_inst.specs.row_decoder_bits + fpga_inst.specs.col_decoder_bits - 1
 
 	while current_width >= 1:
