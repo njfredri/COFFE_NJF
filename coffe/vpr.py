@@ -484,12 +484,12 @@ def print_vpr_file_memory(vpr_file, fpga_inst):
 	# I start with the widest single port mode and increase depth
 	current_width = int(memory_max_width)
 	current_depth = int(memory_max_depth / current_width)
-	current_address_bits = fpga_inst.specs.row_decoder_bits + fpga_inst.specs.col_decoder_bits - 1
+	current_address_bits = int(fpga_inst.specs.row_decoder_bits + fpga_inst.specs.col_decoder_bits - 1)
 
 	while current_width >= 1:
 		vpr_file.write("      <mode name=\"mem_"+str(current_depth)+"x"+str(current_width)+"_sp\">\n")
 		vpr_file.write("        <pb_type name=\"mem_"+str(current_depth)+"x"+str(current_width)+"_sp\" blif_model=\".subckt single_port_ram\" class=\"memory\" num_pb=\"1\">\n")
-		vpr_file.write("          <input name=\"addr\" num_pins=\""+str(current_address_bits)+"\" port_class=\"address\"/>\n")
+		vpr_file.write("          <input name=\"addr\" num_pins=\""+str(int(current_address_bits))+"\" port_class=\"address\"/>\n")
 		vpr_file.write("          <input name=\"data\" num_pins=\""+str(current_width)+"\" port_class=\"data_in\"/>\n")
 		vpr_file.write("          <input name=\"we\" num_pins=\"1\" port_class=\"write_en\"/>\n")
 		vpr_file.write("          <output name=\"out\" num_pins=\""+str(current_width)+"\" port_class=\"data_out\"/>\n")
@@ -517,12 +517,15 @@ def print_vpr_file_memory(vpr_file, fpga_inst):
 		current_width /= 2
 		current_depth *= 2
 		current_address_bits += 1
+		current_width = int(current_width)
+		current_depth = int(current_depth)
+		current_address_bits = int(current_address_bits)
 
 	# Generate dual port modes:
 	# In Dual Port mode, maximum width is half of single port mode
-	current_width = memory_max_width / 2
-	current_depth = memory_max_depth / current_width
-	current_address_bits = fpga_inst.specs.row_decoder_bits + fpga_inst.specs.col_decoder_bits
+	current_width = int(memory_max_width / 2)
+	current_depth = int(memory_max_depth / current_width)
+	current_address_bits = int(fpga_inst.specs.row_decoder_bits + fpga_inst.specs.col_decoder_bits)
 
 	while current_width >= 1:
 
@@ -571,6 +574,9 @@ def print_vpr_file_memory(vpr_file, fpga_inst):
 		current_width /= 2
 		current_depth *= 2
 		current_address_bits += 1
+		current_width = int(current_width)
+		current_depth = int(current_depth)
+		current_address_bits = int(current_address_bits)
 
 
 	#vpr_file.write("    <fc default_in_type=\"abs\" default_in_val=\""+str(fpga_inst.cb_mux.required_size)+"\" default_out_type=\"abs\" default_out_val=\""+str(fpga_inst.sb_mux.required_size)+"\"/>\n")
