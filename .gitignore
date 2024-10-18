@@ -82,3 +82,7 @@ sainity_check/sainity_check/
 # hspice_extract file not used anywhere in the code
 # should be deleted later
 coffe/hspice_extract.py
+
+#ignore folders for personal use
+njf_work
+temp
