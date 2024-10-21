@@ -7,3 +7,5 @@ If you make changes to COFFE, run the "tests_top_level.py" script in the "tests"
 
 How to cite:  
 Read the citation guide.
+
+This specific fork is for my work. There will be a few fixes to COFFE and QOL changes.
