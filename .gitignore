@@ -86,3 +86,6 @@ coffe/hspice_extract.py
 #ignore folders for personal use
 njf_work
 temp
+
+#ignore credentials file
+ssh_config.sh
