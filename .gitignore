@@ -89,3 +89,4 @@ temp
 
 #ignore credentials file
 ssh_config.sh
+ssh_config.bash
