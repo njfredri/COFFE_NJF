@@ -4477,6 +4477,7 @@ class _RAM(_CompoundCircuit):
 
         # Bounds on row decoder size:
         assert self.row_decoder_bits >= 5
+        # assert self.row_decoder_bits > 4
         assert self.row_decoder_bits <= 9
 
         # determine decoder object sizes

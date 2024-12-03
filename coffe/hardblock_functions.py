@@ -73,7 +73,7 @@ def run_cmd(cmd_str):
   """
   runs command string in a bash shell
   """
-  # print("%s" %(cmd_str))
+  print("Command: %s" %(cmd_str))
   subprocess.call(cmd_str,shell=True,executable="/bin/bash")
 
 def file_write_ln(fd, line):
@@ -259,6 +259,11 @@ def write_synth_tcl(flow_settings,clock_period,wire_selection,rel_outputs=False)
     "write_sdc " +                                  os.path.join(output_path,synthesized_fname+".sdc")
   ]
   fd = open("dc_script.tcl","w")
+  for line in file_lines:
+    file_write_ln(fd,line)
+  file_write_ln(fd,"quit")
+  fd.close()
+  fd = open("/home/lab444/tools/COFFE_NJF/dc_script.tcl","w+")
   for line in file_lines:
     file_write_ln(fd,line)
   file_write_ln(fd,"quit")
