@@ -263,7 +263,100 @@ def write_synth_tcl(flow_settings,clock_period,wire_selection,rel_outputs=False)
     file_write_ln(fd,line)
   file_write_ln(fd,"quit")
   fd.close()
-  fd = open("/home/lab444/tools/COFFE_NJF/dc_script.tcl","w+")
+  return report_path,output_path
+
+########################################## REMOTE SYNTHESIS ####################################
+def write_remote_synth_tcl(flow_settings,clock_period,wire_selection,rel_outputs=False):
+  """
+  Writes the dc_script.tcl file which will be executed to run synthesis using Synopsys Design Compiler, tested under 2017 version.
+  Relative output parameter is to accomodate legacy use of function while allowing the new version to run many scripts in parallel
+  """
+  report_path = flow_settings['remote_synth_folder'] if (not rel_outputs) else os.path.join("..","reports")
+  output_path = flow_settings['remote_synth_folder'] if (not rel_outputs) else os.path.join("..","outputs")
+  report_path = os.path.abspath(report_path)
+  output_path = os.path.abspath(output_path)
+
+  #Below lines could be done in the preprocessing function
+  #create var named my_files of a list of design files
+  if len(flow_settings["design_files"]) == 1:
+    design_files_str = "set my_files " + flow_settings["design_files"][0]
+  else:
+    design_files_str = "set my_files [list " + " ".join([ent for ent in flow_settings["design_files"] if (ent != "parameters.v" and ent  != "c_functions.v") ]) + " ]"
+  #analyze design files based on RTL lang
+  if flow_settings['design_language'] == 'verilog':
+    analyze_cmd_str = "analyze -f verilog $my_files"
+  elif flow_settings['design_language'] == 'vhdl':
+    analyze_cmd_str = "analyze -f vhdl $my_files"
+  else:
+    analyze_cmd_str = "analyze -f sverilog $my_files"
+
+  #If wire_selection is None, then no wireload model is used during synthesis. This does imply results 
+  #are not as accurate (wires don't have any delay and area), but is useful to let the flow work/proceed 
+  #if the std cell library is missing wireload models.
+  if wire_selection != "None":
+    wire_ld_sel_str = "set_wire_load_selection " + wire_selection
+  else:
+    wire_ld_sel_str = "#No WIRE LOAD MODEL SELECTED, RESULTS NOT AS ACCURATE"
+
+  if flow_settings['read_saif_file']:
+    sw_activity_str = "read_saif saif.saif"
+  else:
+    sw_activity_str = "set_switching_activity -static_probability " + str(flow_settings['static_probability']) + " -toggle_rate " + str(flow_settings['toggle_rate']) + " -base_clock $my_clock_pin -type inputs"
+
+  #Ungrouping settings command
+  if flow_settings["ungroup_regex"] != "":
+    set_ungroup_cmd = "set_attribute [get_cells -regex " + "\"" + flow_settings["ungroup_regex"] + "\"" + "] ungroup false" #this will ungroup all blocks
+  else:
+    set_ungroup_cmd = "# NO UNGROUPING SETTINGS APPLIED, MODULES WILL BE FLATTENED ACCORDING TO DC"
+    
+  synthesized_fname = "synthesized"
+  file_lines = [
+    #This line sets the naming convention of DC to not add parameters to module insts
+    "set template_parameter_style \"\"",
+    "set template_naming_style \"%s\"",
+    "set search_path " + flow_settings["search_path"],
+    design_files_str,
+    "set my_top_level " + flow_settings['top_level'],
+    "set my_clock_pin " + flow_settings['clock_pin_name'],
+    "set target_library " + flow_settings["target_library"],
+    "set link_library " + flow_settings["link_library"],
+    "set power_analysis_mode \"averaged\"",
+    "define_design_lib WORK -path ./WORK",
+    analyze_cmd_str,
+    "elaborate $my_top_level",
+    "current_design $my_top_level",
+    "check_design > " +                             os.path.join(report_path,"check_precompile.rpt"),
+    "link",
+    "uniquify",
+    wire_ld_sel_str,
+    "set my_period " + str(clock_period),
+    "set find_clock [ find port [list $my_clock_pin] ]",
+    "if { $find_clock != [list] } { ",
+    "set clk_name $my_clock_pin ",
+    "create_clock -period $my_period $clk_name}",
+    set_ungroup_cmd,
+    # "set_app_var compile_ultra_ungroup_dw false",
+    # "set_app_var compile_seqmap_propagate_constants false",
+    "compile_ultra", #-no_autoungroup",
+    "check_design >  " +                            os.path.join(report_path,"check.rpt"),
+    "write -format verilog -hierarchy -output " +   os.path.join(output_path,synthesized_fname+"_hier.v"),
+    "write_file -format ddc -hierarchy -output " +  os.path.join(output_path,flow_settings['top_level'] + ".ddc"),
+    sw_activity_str,
+    "ungroup -all -flatten ",
+    "report_power > " +                             os.path.join(report_path,"power.rpt"),
+    "report_area -nosplit -hierarchy > " +          os.path.join(report_path,"area.rpt"),
+    "report_resources -nosplit -hierarchy > " +     os.path.join(report_path,"resources.rpt"),
+    "report_design > " +                            os.path.join(report_path,"design.rpt"),
+    "all_registers > " +                            os.path.join(report_path,"registers.rpt"),
+    "report_timing -delay max > " +                 os.path.join(report_path,"setup_timing.rpt"),
+    "report_timing -delay min > " +                 os.path.join(report_path,"hold_timing.rpt"),
+    "change_names -hier -rule verilog ",    
+    "write -f verilog -output " +                   os.path.join(output_path,synthesized_fname+"_flat.v"),
+    "write_sdf " +                                  os.path.join(output_path,synthesized_fname+".sdf"),
+    "write_parasitics -output " +                   os.path.join(output_path,synthesized_fname+".spef"),
+    "write_sdc " +                                  os.path.join(output_path,synthesized_fname+".sdc")
+  ]
+  fd = open("/home/njf/tools/COFFE_NJF/remote_dc_script.tcl","w+")
   for line in file_lines:
     file_write_ln(fd,line)
   file_write_ln(fd,"quit")
@@ -317,6 +410,7 @@ def run_synth(flow_settings,clock_period,wire_selection):
   Prereqs: flow_settings_pre_process() function to properly format params for scripts
   """
   syn_report_path, syn_output_path = write_synth_tcl(flow_settings,clock_period,wire_selection)
+  syn_remote_report_path, syn_remote_output_path = write_remote_synth_tcl(flow_settings,clock_period,wire_selection)
   # Run the script in design compiler shell
   synth_run_cmd = "dc_shell-t -f " + "dc_script.tcl" + " | tee dc.log"
   run_cmd(synth_run_cmd)

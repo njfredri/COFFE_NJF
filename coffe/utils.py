@@ -929,6 +929,12 @@ def load_params(filename,run_options):
                     hb_param['pwr_pin'] = value.strip()
                 elif param == "process_size":
                     hb_param["process_size"] = str(value)
+                #remote flow parameters
+                elif param == 'remote_synth_folder': 
+                    hb_param['remote_synth_folder'] = str(value)
+                elif param == 'remote_synth': #enable synthesis on a remote machine
+                    hb_param['remote_synth'] = bool(value)
+                    
                 
             input_param_options = {
                 "period" : "float",
