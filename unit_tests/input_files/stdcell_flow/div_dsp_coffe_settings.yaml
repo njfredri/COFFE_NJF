@@ -20,7 +20,7 @@
 ##### Architecture Parameters
 #######################################
 fpga_arch_params:
-  arch_out_folder : ~/COFFE/unit_tests/output_files/div_dsp/arch_out_dir
+  arch_out_folder : ~/tools/COFFE_NJF/unit_tests/output_files/div_dsp/arch_out_dir
   # The following parameters are the classic VPR architecture parameters
   N : 10
   K : 6
@@ -200,13 +200,13 @@ fpga_arch_params:
 asic_hardblock_params:
   hardblocks:
     #The coffe repo path is used to find other python files in coffe in the analyze_results dir
-    - coffe_repo_path : ~/COFFE
+    - coffe_repo_path : ~/tools/COFFE_NJF
       #This is where parsed results will be generated 
-      condensed_results_folder : ~/COFFE/unit_tests/output_files/div_dsp/condensed_results
+      condensed_results_folder : ~/tools/COFFE_NJF/unit_tests/output_files/div_dsp/condensed_results
 
       partition_flag : False
 
-      parallel_hardblock_folder : ~/COFFE/unit_tests/output_files/div_dsp/asic_work
+      parallel_hardblock_folder : ~/tools/COFFE_NJF/unit_tests/output_files/div_dsp/asic_work
 
       mp_num_cores : 10
 
@@ -219,7 +219,7 @@ asic_hardblock_params:
       # ^ this would sweep period and evaluate asic flow for both values
 
       # The folder in which all the design files are located:
-      design_folder : ~/COFFE/input_files/div_dsp/dsp_hdl
+      design_folder : ~/tools/COFFE_NJF/input_files/div_dsp/dsp_hdl
 
       # The design language. Should be either 'verilog', 'vhdl' or 'sverilog'
       design_language : verilog
@@ -311,6 +311,8 @@ asic_hardblock_params:
       ########## Synthesis Settings ##########
       ########################################
 
+      remote_synth : True
+
       # Name of the clock pin in the design
       clock_pin_name : clk
       # Desired clock period in ns
@@ -320,7 +322,10 @@ asic_hardblock_params:
       top_level : FMULT
 
       # The name of the folder in which post-synthesis files and synthesis reports are to be stored
-      synth_folder : ~/COFFE/unit_tests/output_files/div_dsp/synth
+      synth_folder : ~/tools/COFFE_NJF/unit_tests/output_files/div_dsp/synth
+
+      # The name of hte folder in the remote server in which post-synthesis files and synthesis reports are to be stored
+      remote_synth_folder : /home/njfredri
 
       # Do you want to be informed of warnings during synthesis?
 
@@ -376,7 +381,7 @@ asic_hardblock_params:
       space_around_core : 10
 
       # The folder in which place and route reports and post-routing netlists and spef files will be stored
-      pr_folder : ~/COFFE/unit_tests/output_files/div_dsp/pr
+      pr_folder : ~/tools/COFFE_NJF/unit_tests/output_files/div_dsp/pr
 
       ##############################################
       ########## Prime Time Settings ###############
@@ -384,7 +389,7 @@ asic_hardblock_params:
 
       mode_signal : null
 
-      primetime_folder : ~/COFFE/unit_tests/output_files/div_dsp/pt
+      primetime_folder : ~/tools/COFFE_NJF/unit_tests/output_files/div_dsp/pt
 
       # COFFE parameters:
       name : hard_block
