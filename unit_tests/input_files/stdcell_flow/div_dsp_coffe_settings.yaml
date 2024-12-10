@@ -241,7 +241,10 @@ asic_hardblock_params:
       process_lib_paths : 
         - /CMC/kits/tsmc_65nm_libs/tcbn65gplus/TSMCHOME/digital/Front_End/timing_power_noise/NLDM/tcbn65gplus_140b
         - /CMC/kits/tsmc_65nm_libs/tpzn65gpgv2/TSMCHOME/digital/Front_End/timing_power_noise/NLDM/tpzn65gpgv2_140c
-
+      #absolute paths to directories in remote server
+      remote_process_lib_paths :
+        - /CMC/tcbn65gplus_140b
+        - /CMC/tpzn65gpgv2_140c
       # Location of the library files.
       # if you have more than one library, please provide them similiar to the example below.
       target_libraries :
@@ -327,6 +330,8 @@ asic_hardblock_params:
 
       # The name of hte folder in the remote server in which post-synthesis files and synthesis reports are to be stored
       remote_synth_folder : /home/njfredri
+      remote_synopsys_variable : /home/njfredri/project
+      
 
       # Do you want to be informed of warnings during synthesis?
 
@@ -352,7 +357,7 @@ asic_hardblock_params:
       ##############################################
 
       #This can be of value "innovus" or "encounter" depending on version of cadence pnr tool used
-      pnr_tool : innovus
+      pnr_tool : encounter
 
       #name of the file to use for layer mapping. used for stream out.
       #set it to None if you want the tool to create a generic map file
