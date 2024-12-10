@@ -930,6 +930,8 @@ def load_params(filename,run_options):
                 elif param == "process_size":
                     hb_param["process_size"] = str(value)
                 #remote flow parameters
+                elif param == 'remote_design_folder':
+                    hb_param['remote_design_folder'] = str(value)
                 elif param == 'remote_synth_folder': 
                     hb_param['remote_synth_folder'] = str(value)
                 elif param == 'remote_synth': #enable synthesis on a remote machine

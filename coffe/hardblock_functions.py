@@ -12,6 +12,7 @@ import math
 import glob
 import multiprocessing as mp
 import csv
+# from remote_utils import RemoteUtils
 
 """
 Notes:
@@ -98,6 +99,16 @@ def flow_settings_pre_process(processed_flow_settings,cur_env):
   design_files = [fn for _, _, fs in os.walk(design_folder) for fn in fs if ext_re.search(fn)]
   #The syn_write_tcl_script function expects this to be a list of all design files
   processed_flow_settings["design_files"] = design_files
+
+  #synth design file setup
+  if processed_flow_settings['remote_synth'] == True:
+    remote_design_folder = processed_flow_settings['remote_design_folder']
+    design_file_names = [f for f in os.listdir(design_folder) if os.path.isfile(os.path.join(design_folder, f))]
+    #all design files will be in the same folder
+    remote_design_files = [os.path.join(remote_design_folder, f) for f in design_file_names]
+    #override designfiles variable to use remote files and directories instead
+    design_files = remote_design_files
+
   # formatting search_path
   search_path_dirs = []
   search_path_dirs.append(".")
@@ -356,7 +367,7 @@ def write_remote_synth_tcl(flow_settings,clock_period,wire_selection,rel_outputs
     "write_parasitics -output " +                   os.path.join(output_path,synthesized_fname+".spef"),
     "write_sdc " +                                  os.path.join(output_path,synthesized_fname+".sdc")
   ]
-  fd = open("/home/njf/tools/COFFE_NJF/remote_dc_script.tcl","w+")
+  fd = open("remote_dc_script.tcl","w+")
   for line in file_lines:
     file_write_ln(fd,line)
   file_write_ln(fd,"quit")
@@ -409,61 +420,67 @@ def run_synth(flow_settings,clock_period,wire_selection):
   runs the synthesis flow for specific clock period and wireload model
   Prereqs: flow_settings_pre_process() function to properly format params for scripts
   """
-  syn_report_path, syn_output_path = write_synth_tcl(flow_settings,clock_period,wire_selection)
-  syn_remote_report_path, syn_remote_output_path = write_remote_synth_tcl(flow_settings,clock_period,wire_selection)
-  # Run the script in design compiler shell
-  synth_run_cmd = "dc_shell-t -f " + "dc_script.tcl" + " | tee dc.log"
-  run_cmd(synth_run_cmd)
-  # clean after DC!
-  subprocess.call('rm -rf command.log', shell=True)
-  subprocess.call('rm -rf default.svf', shell=True)
-  subprocess.call('rm -rf filenames.log', shell=True)
+  if(flow_settings['remote_synth'] == True):
+    syn_remote_report_path, syn_remote_output_path = write_remote_synth_tcl(flow_settings,clock_period,wire_selection)
+    #copy the dc_script.tcl to 
 
-  check_synth_run(flow_settings,syn_report_path)
+    return syn_remote_report_path, syn_remote_output_path
+    
+  else:
+    syn_report_path, syn_output_path = write_synth_tcl(flow_settings,clock_period,wire_selection)
+    # Run the script in design compiler shell
+    synth_run_cmd = "dc_shell-t -f " + "dc_script.tcl" + " | tee dc.log"
+    run_cmd(synth_run_cmd)
+    # clean after DC!
+    subprocess.call('rm -rf command.log', shell=True)
+    subprocess.call('rm -rf default.svf', shell=True)
+    subprocess.call('rm -rf filenames.log', shell=True)
 
-  #Copy synthesis results to a unique dir in synth dir
-  synth_report_str = copy_syn_outputs(flow_settings,clock_period,wire_selection,syn_report_path)
-  #if the user doesn't want to perform place and route, extract the results from DC reports and end
-  if flow_settings['synthesis_only']:
-    # read total area from the report file:
-    file = open(flow_settings['synth_folder'] + "/area.rpt" ,"r")
-    for line in file:
-      if line.startswith('Total cell area:'):
-        total_area = re.findall(r'\d+\.{0,1}\d*', line)
-    file.close()
-    # Read timing parameters
-    file = open(flow_settings['synth_folder'] + "/timing.rpt" ,"r")
-    for line in file:
-      if 'library setup time' in line:
-        library_setup_time = re.findall(r'\d+\.{0,1}\d*', line)
-      if 'data arrival time' in line:
-        data_arrival_time = re.findall(r'\d+\.{0,1}\d*', line)
-    try:
-      total_delay =  float(library_setup_time[0]) + float(data_arrival_time[0])
-    except NameError:
-      total_delay =  float(data_arrival_time[0])
-    file.close()    
-    # Read dynamic power
-    file = open(flow_settings['synth_folder'] + "/power.rpt" ,"r")
-    for line in file:
-      if 'Total Dynamic Power' in line:
-        total_dynamic_power = re.findall(r'\d+\.\d*', line)
-        total_dynamic_power[0] = float(total_dynamic_power[0])
-        if 'mW' in line:
-          total_dynamic_power[0] *= 0.001
-        elif 'uw' in line:
-          total_dynamic_power[0] *= 0.000001
-        else:
-          total_dynamic_power[0] = 0
-    file.close()
-    # write the final report file:
-    file = open("report.txt" ,"w")
-    file.write("total area = "  + str(total_area[0]) +  "\n")
-    file.write("total delay = " + str(total_delay) + " ns\n")
-    file.write("total power = " + str(total_dynamic_power[0]) + " W\n")
-    file.close()
-    #return
-  return synth_report_str,syn_output_path
+    check_synth_run(flow_settings,syn_report_path)
+
+    #Copy synthesis results to a unique dir in synth dir
+    synth_report_str = copy_syn_outputs(flow_settings,clock_period,wire_selection,syn_report_path)
+    #if the user doesn't want to perform place and route, extract the results from DC reports and end
+    if flow_settings['synthesis_only']:
+      # read total area from the report file:
+      file = open(flow_settings['synth_folder'] + "/area.rpt" ,"r")
+      for line in file:
+        if line.startswith('Total cell area:'):
+          total_area = re.findall(r'\d+\.{0,1}\d*', line)
+      file.close()
+      # Read timing parameters
+      file = open(flow_settings['synth_folder'] + "/timing.rpt" ,"r")
+      for line in file:
+        if 'library setup time' in line:
+          library_setup_time = re.findall(r'\d+\.{0,1}\d*', line)
+        if 'data arrival time' in line:
+          data_arrival_time = re.findall(r'\d+\.{0,1}\d*', line)
+      try:
+        total_delay =  float(library_setup_time[0]) + float(data_arrival_time[0])
+      except NameError:
+        total_delay =  float(data_arrival_time[0])
+      file.close()    
+      # Read dynamic power
+      file = open(flow_settings['synth_folder'] + "/power.rpt" ,"r")
+      for line in file:
+        if 'Total Dynamic Power' in line:
+          total_dynamic_power = re.findall(r'\d+\.\d*', line)
+          total_dynamic_power[0] = float(total_dynamic_power[0])
+          if 'mW' in line:
+            total_dynamic_power[0] *= 0.001
+          elif 'uw' in line:
+            total_dynamic_power[0] *= 0.000001
+          else:
+            total_dynamic_power[0] = 0
+      file.close()
+      # write the final report file:
+      file = open("report.txt" ,"w")
+      file.write("total area = "  + str(total_area[0]) +  "\n")
+      file.write("total delay = " + str(total_delay) + " ns\n")
+      file.write("total power = " + str(total_dynamic_power[0]) + " W\n")
+      file.close()
+      #return
+      return synth_report_str,syn_output_path
 ########################################## SYNTH RUN FUNCS ##########################################
 ########################################## SYNTHESIS ##########################################
 
