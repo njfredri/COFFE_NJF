@@ -297,8 +297,10 @@ def write_remote_synth_tcl(flow_settings,clock_period,wire_selection,rel_outputs
   Writes the dc_script.tcl file which will be executed to run synthesis using Synopsys Design Compiler, tested under 2017 version.
   Relative output parameter is to accomodate legacy use of function while allowing the new version to run many scripts in parallel
   """
-  report_path = flow_settings['remote_synth_folder'] if (not rel_outputs) else os.path.join("..","reports")
-  output_path = flow_settings['remote_synth_folder'] if (not rel_outputs) else os.path.join("..","outputs")
+  report_path = flow_settings['synth_folder'] if (not rel_outputs) else os.path.join("..","reports")
+  output_path = flow_settings['synth_folder'] if (not rel_outputs) else os.path.join("..","outputs")
+  remote_report_path = os.path.join(flow_settings['remote_synth_folder'], 'reports')
+  remote_output_path = os.path.join(flow_settings['remote_synth_folder'], 'outputs')
   report_path = os.path.abspath(report_path)
   output_path = os.path.abspath(output_path)
 
@@ -351,7 +353,7 @@ def write_remote_synth_tcl(flow_settings,clock_period,wire_selection,rel_outputs
     analyze_cmd_str,
     "elaborate $my_top_level",
     "current_design $my_top_level",
-    "check_design > " +                             os.path.join(report_path,"check_precompile.rpt"),
+    "check_design > " +                             os.path.join(remote_report_path,"check_precompile.rpt"),
     "link",
     "uniquify",
     wire_ld_sel_str,
@@ -364,29 +366,30 @@ def write_remote_synth_tcl(flow_settings,clock_period,wire_selection,rel_outputs
     # "set_app_var compile_ultra_ungroup_dw false",
     # "set_app_var compile_seqmap_propagate_constants false",
     "compile_ultra", #-no_autoungroup",
-    "check_design >  " +                            os.path.join(report_path,"check.rpt"),
-    "write -format verilog -hierarchy -output " +   os.path.join(output_path,synthesized_fname+"_hier.v"),
-    "write_file -format ddc -hierarchy -output " +  os.path.join(output_path,flow_settings['top_level'] + ".ddc"),
+    "check_design >  " +                            os.path.join(remote_report_path,"check.rpt"),
+    "write -format verilog -hierarchy -output " +   os.path.join(remote_output_path,synthesized_fname+"_hier.v"),
+    "write_file -format ddc -hierarchy -output " +  os.path.join(remote_output_path,flow_settings['top_level'] + ".ddc"),
     sw_activity_str,
     "ungroup -all -flatten ",
-    "report_power > " +                             os.path.join(report_path,"power.rpt"),
-    "report_area -nosplit -hierarchy > " +          os.path.join(report_path,"area.rpt"),
-    "report_resources -nosplit -hierarchy > " +     os.path.join(report_path,"resources.rpt"),
-    "report_design > " +                            os.path.join(report_path,"design.rpt"),
-    "all_registers > " +                            os.path.join(report_path,"registers.rpt"),
-    "report_timing -delay max > " +                 os.path.join(report_path,"setup_timing.rpt"),
-    "report_timing -delay min > " +                 os.path.join(report_path,"hold_timing.rpt"),
+    "report_power > " +                             os.path.join(remote_report_path,"power.rpt"),
+    "report_area -nosplit -hierarchy > " +          os.path.join(remote_report_path,"area.rpt"),
+    "report_resources -nosplit -hierarchy > " +     os.path.join(remote_report_path,"resources.rpt"),
+    "report_design > " +                            os.path.join(remote_report_path,"design.rpt"),
+    "all_registers > " +                            os.path.join(remote_report_path,"registers.rpt"),
+    "report_timing -delay max > " +                 os.path.join(remote_report_path,"setup_timing.rpt"),
+    "report_timing -delay min > " +                 os.path.join(remote_report_path,"hold_timing.rpt"),
     "change_names -hier -rule verilog ",    
-    "write -f verilog -output " +                   os.path.join(output_path,synthesized_fname+"_flat.v"),
-    "write_sdf " +                                  os.path.join(output_path,synthesized_fname+".sdf"),
-    "write_parasitics -output " +                   os.path.join(output_path,synthesized_fname+".spef"),
-    "write_sdc " +                                  os.path.join(output_path,synthesized_fname+".sdc")
+    "write -f verilog -output " +                   os.path.join(remote_output_path,synthesized_fname+"_flat.v"),
+    "write_sdf " +                                  os.path.join(remote_output_path,synthesized_fname+".sdf"),
+    "write_parasitics -output " +                   os.path.join(remote_output_path,synthesized_fname+".spef"),
+    "write_sdc " +                                  os.path.join(remote_output_path,synthesized_fname+".sdc")
   ]
   fd = open("remote_dc_script.tcl","w+")
   for line in file_lines:
     file_write_ln(fd,line)
   file_write_ln(fd,"quit")
   fd.close()
+  print('******in write_remote_synth_tcl() the remote output and report directories are ' + str(remote_output_path) + ' ' + str(remote_report_path))
   return report_path,output_path
 
 ########################################## SYNTH UTILS ##########################################
@@ -436,6 +439,7 @@ def run_synth(flow_settings,clock_period,wire_selection):
   Prereqs: flow_settings_pre_process() function to properly format params for scripts
   """
   if(flow_settings['remote_synth'] == True):
+    # print("*****run_synth() using remote synthesis. (Comment out or remove this print statement)")
     syn_remote_report_path, syn_remote_output_path = write_remote_synth_tcl(flow_settings,clock_period,wire_selection)
     #copy the dc_script.tcl to 
 

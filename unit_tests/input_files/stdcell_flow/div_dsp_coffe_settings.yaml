@@ -317,7 +317,6 @@ asic_hardblock_params:
 
       remote_synth : True
 
-      remote_synopsys_env : /home/njf/synopsys
 
       # Name of the clock pin in the design
       clock_pin_name : clk
@@ -330,9 +329,9 @@ asic_hardblock_params:
       # The name of the folder in which post-synthesis files and synthesis reports are to be stored
       synth_folder : ~/tools/COFFE_NJF/unit_tests/output_files/div_dsp/synth
 
-      # The name of hte folder in the remote server in which post-synthesis files and synthesis reports are to be stored
-      remote_synth_folder : /home/njfredri
-      remote_synopsys_variable : /home/njfredri/project
+      # The name of tte folder in the remote server in which post-synthesis files and synthesis reports are to be stored
+      remote_synth_folder : /home/njfredri/synth
+      remote_synopsys_env : /home/njfredri/examplesynopsysvar #replaces SYNOPSYS environment variable
       
 
       # Do you want to be informed of warnings during synthesis?
