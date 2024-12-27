@@ -100,8 +100,11 @@ def flow_settings_pre_process(processed_flow_settings,cur_env):
   #The syn_write_tcl_script function expects this to be a list of all design files
   processed_flow_settings["design_files"] = design_files
 
+  REMOTE=False
+
   #synth design file setup
   if processed_flow_settings['remote_synth'] == True:
+    REMOTE=True
     remote_design_folder = processed_flow_settings['remote_design_folder']
     design_file_names = [f for f in os.listdir(design_folder) if os.path.isfile(os.path.join(design_folder, f))]
     #all design files will be in the same folder
@@ -112,14 +115,26 @@ def flow_settings_pre_process(processed_flow_settings,cur_env):
   # formatting search_path
   search_path_dirs = []
   search_path_dirs.append(".")
-  try:
-    syn_root = cur_env.get("SYNOPSYS")
-    search_path_dirs = [os.path.join(syn_root,"libraries",dirname) for dirname in ["syn","syn_ver","sim_ver"] ]
-  except:
-    print("could not find 'SYNOPSYS' environment variable set, please source your ASIC tools or run the following command to your sysopsys home directory")
-    print("export SYNOPSYS=/abs/path/to/synopsys/home")
-    print("Ex. export SYNOPSYS=/CMC/tools/synopsys/syn_vN-2017.09/")
-    sys.exit(1)
+  
+  if not REMOTE:
+    try:
+      syn_root = cur_env.get("SYNOPSYS")
+      search_path_dirs = [os.path.join(syn_root,"libraries",dirname) for dirname in ["syn","syn_ver","sim_ver"] ]
+    except:
+      print("could not find 'SYNOPSYS' environment variable set, please source your ASIC tools or run the following command to your sysopsys home directory")
+      print("export SYNOPSYS=/abs/path/to/synopsys/home")
+      print("Ex. export SYNOPSYS=/CMC/tools/synopsys/syn_vN-2017.09/")
+      sys.exit(1)
+  else:
+    try:
+      syn_root = processed_flow_settings["remote_synopsys_env"]
+      search_path_dirs = [os.path.join(syn_root,"libraries",dirname) for dirname in ["syn","syn_ver","sim_ver"] ]
+    except:
+      print("could not find 'remote_synopsys_env' variable in input file, please add the variable to you input file")
+      # print("export SYNOPSYS=/abs/path/to/synopsys/home")
+      print("Ex. remote_synopsys_env : /CMC/tools/synopsys/syn_vN-2017.09/")
+      sys.exit(1)
+  
   #Place and route
   if(processed_flow_settings["pnr_tool"] == "innovus"):
     try:
