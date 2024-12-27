@@ -317,6 +317,8 @@ asic_hardblock_params:
 
       remote_synth : True
 
+      remote_synopsys_env : /home/njf/synopsys
+
       # Name of the clock pin in the design
       clock_pin_name : clk
       # Desired clock period in ns
