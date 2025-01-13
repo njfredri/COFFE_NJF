@@ -63,3 +63,8 @@ class RemoteUtils:
             command = 'sshpass -p ' + remote_host + ' ' + command
         subprocess.call(command,shell=True,executable="/bin/bash")
         
+    def copyDirToServer(dir, remotedir, username, remote_host, remote_password:str = None):
+        command = 'scp -r ' + dir + ' ' + username + '@' + remote_host + ':' + remotedir
+        if remote_password != None:
+            command = 'sshpass -p ' + remote_host + ' ' + command
+        subprocess.call(command,shell=True,executable="/bin/bash")
