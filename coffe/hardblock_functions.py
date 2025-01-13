@@ -154,6 +154,9 @@ def flow_settings_pre_process(processed_flow_settings,cur_env):
       if(ext_re.search(fname)):
         search_path_dirs.append(os.path.join(root,dirname))
   
+  if processed_flow_settings['remote_synth'] == True:
+    search_path_dirs.append(processed_flow_settings['remote_design_folder'])
+
   search_path_str = "\"" + " ".join(search_path_dirs) + "\""
   processed_flow_settings["search_path"] = search_path_str
   #formatting target libs
@@ -308,8 +311,10 @@ def write_remote_synth_tcl(flow_settings,clock_period,wire_selection,rel_outputs
   #Below lines could be done in the preprocessing function
   #create var named my_files of a list of design files
   if len(flow_settings["design_files"]) == 1:
+    print('*****only 1 design file')
     design_files_str = "set my_files " + flow_settings["design_files"][0]
   else:
+    print('*****more than 1 design file')
     design_files_str = "set my_files [list " + " ".join([ent for ent in flow_settings["design_files"] if (ent != "parameters.v" and ent  != "c_functions.v") ]) + " ]"
   #analyze design files based on RTL lang
   if flow_settings['design_language'] == 'verilog':
@@ -343,8 +348,8 @@ def write_remote_synth_tcl(flow_settings,clock_period,wire_selection,rel_outputs
     #This line sets the naming convention of DC to not add parameters to module insts
     "set template_parameter_style \"\"",
     "set template_naming_style \"%s\"",
-    "set search_path " + flow_settings["search_path"], flow_settings['remote_design_folder'],
-    # design_files_str, removed. 
+    "set search_path " + flow_settings["search_path"],
+    design_files_str,
     "set my_top_level " + flow_settings['top_level'],
     "set my_clock_pin " + flow_settings['clock_pin_name'],
     "set target_library " + flow_settings["target_library"],
