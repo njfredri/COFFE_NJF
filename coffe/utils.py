@@ -938,6 +938,8 @@ def load_params(filename,run_options):
                     hb_param['remote_synth'] = bool(value)
                 elif param == 'remote_synopsys_env': #enable synthesis on a remote machine
                     hb_param['remote_synopsys_env'] = str(value)
+                elif param == 'remote_design_folder':
+                    hb_param['remote_design_folder'] = str(value)
                     
                 
             input_param_options = {

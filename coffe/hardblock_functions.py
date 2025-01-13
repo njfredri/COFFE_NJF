@@ -12,7 +12,8 @@ import math
 import glob
 import multiprocessing as mp
 import csv
-# from remote_utils import RemoteUtils
+from coffe.remote_utils import RemoteUtils
+import json
 
 """
 Notes:
@@ -342,8 +343,8 @@ def write_remote_synth_tcl(flow_settings,clock_period,wire_selection,rel_outputs
     #This line sets the naming convention of DC to not add parameters to module insts
     "set template_parameter_style \"\"",
     "set template_naming_style \"%s\"",
-    "set search_path " + flow_settings["search_path"],
-    design_files_str,
+    "set search_path " + flow_settings["search_path"], flow_settings['remote_design_folder'],
+    # design_files_str, removed. 
     "set my_top_level " + flow_settings['top_level'],
     "set my_clock_pin " + flow_settings['clock_pin_name'],
     "set target_library " + flow_settings["target_library"],
@@ -439,9 +440,30 @@ def run_synth(flow_settings,clock_period,wire_selection):
   Prereqs: flow_settings_pre_process() function to properly format params for scripts
   """
   if(flow_settings['remote_synth'] == True):
-    # print("*****run_synth() using remote synthesis. (Comment out or remove this print statement)")
+    print("*****run_synth() using remote synthesis. (Comment out or remove this print statement)")
     syn_remote_report_path, syn_remote_output_path = write_remote_synth_tcl(flow_settings,clock_period,wire_selection)
-    #copy the dc_script.tcl to 
+
+    #grab credentials from json
+    sshconfig = None
+    coffepath = os.getcwd()
+    coffepath = os.path.join(coffepath.split('COFFE_NJF')[0], 'COFFE_NJF')
+    # print(coffepath)
+    with open(os.path.join(coffepath, 'ssh_config.json'), "r") as configfile:
+      sshconfig = json.load(configfile)
+    
+    if sshconfig == None: 
+      print("ERROR. Failed to get ssh configuation from 'ssh_config.json'")
+      exit()
+
+    #copy the dc_script.tcl to server
+    RemoteUtils.copyFileToServer('./dc_script.tcl', sshconfig['remotedir'], sshconfig['username'], sshconfig['server'])
+    print('dc_script.tcl copied to server')
+
+    #copy hdl files to server
+
+    #run the dc_script.tcl
+    synth_run_cmd = "dc_shell-t -f " + "dc_script.tcl" + " | tee dc.log"
+    RemoteUtils.run_cmd(synth_run_cmd, sshconfig['username'], remote_host=sshconfig['server'], remotedir=sshconfig['remotedir'])
 
     return syn_remote_report_path, syn_remote_output_path
     

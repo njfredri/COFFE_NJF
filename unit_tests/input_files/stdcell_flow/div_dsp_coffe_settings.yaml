@@ -332,6 +332,7 @@ asic_hardblock_params:
       # The name of tte folder in the remote server in which post-synthesis files and synthesis reports are to be stored
       remote_synth_folder : /home/njfredri/synth
       remote_synopsys_env : /home/njfredri/examplesynopsysvar #replaces SYNOPSYS environment variable
+      remote_design_folder : /home/njfredri/test/hdl
       
 
       # Do you want to be informed of warnings during synthesis?
