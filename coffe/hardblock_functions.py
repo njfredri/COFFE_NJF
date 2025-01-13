@@ -456,13 +456,14 @@ def run_synth(flow_settings,clock_period,wire_selection):
       exit()
 
     #copy the dc_script.tcl to server
-    RemoteUtils.copyFileToServer('./dc_script.tcl', sshconfig['remotedir'], sshconfig['username'], sshconfig['server'])
+    RemoteUtils.copyFileToServer('./remote_dc_script.tcl', sshconfig['remotedir'], sshconfig['username'], sshconfig['server'])
     print('dc_script.tcl copied to server')
 
     #copy hdl files to server
+    RemoteUtils.copyDirToServer(flow_settings['design_folder'], flow_settings['remote_design_folder'], username=sshconfig['username'], remote_host=sshconfig['server'])
 
     #run the dc_script.tcl
-    synth_run_cmd = "dc_shell-t -f " + "dc_script.tcl" + " | tee dc.log"
+    synth_run_cmd = "dc_shell-t -f " + "remote_dc_script.tcl" + " | tee dc.log"
     RemoteUtils.run_cmd(synth_run_cmd, sshconfig['username'], remote_host=sshconfig['server'], remotedir=sshconfig['remotedir'])
 
     return syn_remote_report_path, syn_remote_output_path
