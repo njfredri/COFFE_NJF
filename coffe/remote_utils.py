@@ -4,7 +4,7 @@ import subprocess
 class RemoteUtils:
     def run_cmd(cmd_str):
         """
-        runs command string in a bash shell
+        runs command string in a remote bash shell
         """
         print("Command: %s" %(cmd_str))
         subprocess.call(cmd_str,shell=True,executable="/bin/bash")

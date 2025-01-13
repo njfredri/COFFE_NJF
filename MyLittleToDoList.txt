@@ -1,0 +1,2 @@
+*Have the run copy input files from local location to remote location
+*Call synthesis remotely
