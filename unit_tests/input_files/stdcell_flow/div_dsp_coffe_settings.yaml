@@ -239,17 +239,19 @@ asic_hardblock_params:
 
       #Absolute paths to directories containing power_timing_noise information for the desired process
       process_lib_paths : 
-        - /CMC/kits/tsmc_65nm_libs/tcbn65gplus/TSMCHOME/digital/Front_End/timing_power_noise/NLDM/tcbn65gplus_140b
-        - /CMC/kits/tsmc_65nm_libs/tpzn65gpgv2/TSMCHOME/digital/Front_End/timing_power_noise/NLDM/tpzn65gpgv2_140c
+        - /mscad/apps/Linux/synopsys/syn/R-2020.09-SP5-3/libraries/syn
+        # - /CMC/kits/tsmc_65nm_libs/tcbn65gplus/TSMCHOME/digital/Front_End/timing_power_noise/NLDM/tcbn65gplus_140b
+        # - /CMC/kits/tsmc_65nm_libs/tpzn65gpgv2/TSMCHOME/digital/Front_End/timing_power_noise/NLDM/tpzn65gpgv2_140c
       #absolute paths to directories in remote server
-      remote_process_lib_paths :
-        - /CMC/tcbn65gplus_140b
-        - /CMC/tpzn65gpgv2_140c
+      # remote_process_lib_paths :
+      #   - /CMC/tcbn65gplus_140b
+      #   - /CMC/tpzn65gpgv2_140c
       # Location of the library files.
       # if you have more than one library, please provide them similiar to the example below.
       target_libraries :
-      - /CMC/kits/tsmc_65nm_libs/tcbn65gplus/TSMCHOME/digital/Front_End/timing_power_noise/NLDM/tcbn65gplus_140b/tcbn65gpluswc.db
-      - /CMC/kits/tsmc_65nm_libs/tpzn65gpgv2/TSMCHOME/digital/Front_End/timing_power_noise/NLDM/tpzn65gpgv2_140c/tpzn65gpgv2wc.db
+        - /mscad/apps/Linux/synopsys/syn/R-2020.09-SP5-3/libraries/syn/lsi_10k.db
+#       - /CMC/kits/tsmc_65nm_libs/tcbn65gplus/TSMCHOME/digital/Front_End/timing_power_noise/NLDM/tcbn65gplus_140b/tcbn65gpluswc.db
+      # - /CMC/kits/tsmc_65nm_libs/tpzn65gpgv2/TSMCHOME/digital/Front_End/timing_power_noise/NLDM/tpzn65gpgv2_140c/tpzn65gpgv2wc.db
 
       pnr_tool : innovus
 
