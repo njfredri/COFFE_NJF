@@ -249,7 +249,7 @@ asic_hardblock_params:
       # Location of the library files.
       # if you have more than one library, please provide them similiar to the example below.
       target_libraries :
-        - /mscad/apps/Linux/synopsys/syn/R-2020.09-SP5-3/libraries/syn/lsi_10k.db
+        - /mscad/apps/Linux/synopsys/syn/R-2020.09-SP5-3/libraries/syn/power_sample.db
 #       - /CMC/kits/tsmc_65nm_libs/tcbn65gplus/TSMCHOME/digital/Front_End/timing_power_noise/NLDM/tcbn65gplus_140b/tcbn65gpluswc.db
       # - /CMC/kits/tsmc_65nm_libs/tpzn65gpgv2/TSMCHOME/digital/Front_End/timing_power_noise/NLDM/tpzn65gpgv2_140c/tpzn65gpgv2wc.db
 
