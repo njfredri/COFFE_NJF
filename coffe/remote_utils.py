@@ -53,20 +53,20 @@ class RemoteUtils:
     def copyFileToServer(file, remotedir, username, remote_host, passwordFile = None):
         command = 'scp ' + file + ' ' + username + '@' + remote_host + ':' + remotedir
         if passwordFile != None:
-            command = 'sshpass -f ' + remote_host + ' ' + command
+            command = 'sshpass -f ' + passwordFile + ' ' + command
         subprocess.call(command,shell=True,executable="/bin/bash")
 
     def copyFileFromServer(filename, remotedir, localdir, username, remote_host, passwordFile:str = None):
         remotepath = os.path.join(remotedir, filename)
         command = 'scp ' + username + '@' + remote_host + ':' + remotepath + ' ' + localdir
         if passwordFile != None:
-            command = 'sshpass -f ' + remote_host + ' ' + command
+            command = 'sshpass -f ' + passwordFile + ' ' + command
         subprocess.call(command,shell=True,executable="/bin/bash")
         
     def copyDirToServer(dir, remotedir, username, remote_host, passwordFile:str = None):
         command = 'scp ' + dir + '/* ' + username + '@' + remote_host + ':' + remotedir
         if passwordFile != None:
-            command = 'sshpass -f ' + remote_host + ' ' + command
+            command = 'sshpass -f ' + passwordFile + ' ' + command
 
         print(command)
         subprocess.call(command,shell=True,executable="/bin/bash")
@@ -75,7 +75,7 @@ class RemoteUtils:
     def copyDirFromServer(remotedir, localdir, username, remote_host, passwordFile:str = None):
         command = 'scp ' + username + '@' + remote_host + ':' + remotedir + '/* ' + localdir
         if passwordFile != None:
-            command = 'sshpass -f ' + remote_host + ' ' + command
+            command = 'sshpass -f ' + passwordFile + ' ' + command
 
         print(command)
         subprocess.call(command,shell=True,executable="/bin/bash")

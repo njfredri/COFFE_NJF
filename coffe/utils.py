@@ -940,6 +940,8 @@ def load_params(filename,run_options):
                     hb_param['remote_synopsys_env'] = str(value)
                 elif param == 'remote_design_folder':
                     hb_param['remote_design_folder'] = str(value)
+                elif param == 'dev_skip_remote_synth':
+                    hb_param['dev_skip_remote_synth'] = bool(value)
                     
                 
             input_param_options = {

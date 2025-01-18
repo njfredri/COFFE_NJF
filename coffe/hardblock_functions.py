@@ -455,6 +455,10 @@ def run_synth(flow_settings,clock_period,wire_selection):
     print(output_path)
     print(report_path)
 
+    if 'dev_skip_remote_synth' in flow_settings.keys():
+      if flow_settings['dev_skip_remote_synth'] == True:
+        return report_path, output_path #return early to skip synthesis step during development
+    
     #grab credentials from json
     sshconfig = None
     coffepath = os.getcwd()
@@ -469,8 +473,8 @@ def run_synth(flow_settings,clock_period,wire_selection):
 
     # print(sshconfig['password'])
     passwordFile=None
-    if 'password' in sshconfig.keys():
-      print('password was provided')
+    if 'passwordfile' in sshconfig.keys():
+      print('passwordfile was provided')
       passwordFile = sshconfig['passwordfile']
 
     # create the appropriate paths for reports and outputs
@@ -2423,6 +2427,7 @@ def hardblock_flow(flow_settings):
   for clock_period in flow_settings['clock_period']:
     for wire_selection in flow_settings['wire_selection']:
       synth_report_str,syn_output_path = run_synth(processed_flow_settings,clock_period,wire_selection)
+      # print('synth report path:' + str(synth_report_str))
       for metal_layer in flow_settings['metal_layers']:
         for core_utilization in flow_settings['core_utilization']:
           #set the pnr flow to accept the correct name for flattened netlist
