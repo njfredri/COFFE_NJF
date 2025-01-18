@@ -221,6 +221,7 @@ asic_hardblock_params:
       # The folder in which all the design files are located:
       design_folder : ~/tools/COFFE_NJF/input_files/div_dsp/dsp_hdl
       # remote_design_folder: /home/njfredri/input_files/div_dsp/dsp_hdl
+      dev_skip_remote_synth : True
 
       # The design language. Should be either 'verilog', 'vhdl' or 'sverilog'
       design_language : verilog
