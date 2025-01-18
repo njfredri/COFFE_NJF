@@ -467,30 +467,36 @@ def run_synth(flow_settings,clock_period,wire_selection):
       print("ERROR. Failed to get ssh configuation from 'ssh_config.json'")
       exit()
 
+    # print(sshconfig['password'])
+    passwordFile=None
+    if 'password' in sshconfig.keys():
+      print('password was provided')
+      passwordFile = sshconfig['passwordfile']
+
     # create the appropriate paths for reports and outputs
     create_paths = []
     create_paths.append('mkdir ' + remote_report_path)
     create_paths.append('mkdir ' + remote_output_path)
-    RemoteUtils.run_cmds(create_paths, username=sshconfig['username'], remote_host=sshconfig['server'], remotedir=sshconfig['remotedir'])
+    RemoteUtils.run_cmds(create_paths, username=sshconfig['username'], remote_host=sshconfig['server'], remotedir=sshconfig['remotedir'], passwordFile=passwordFile)
 
     #copy the dc_script.tcl to server
-    RemoteUtils.copyFileToServer('./remote_dc_script.tcl', sshconfig['remotedir'], sshconfig['username'], sshconfig['server'])
+    RemoteUtils.copyFileToServer('./remote_dc_script.tcl', sshconfig['remotedir'], sshconfig['username'], sshconfig['server'], passwordFile=passwordFile)
     print('dc_script.tcl copied to server')
 
     #copy hdl files to server
-    RemoteUtils.copyDirToServer(flow_settings['design_folder'], flow_settings['remote_design_folder'], username=sshconfig['username'], remote_host=sshconfig['server'])
+    RemoteUtils.copyDirToServer(flow_settings['design_folder'], flow_settings['remote_design_folder'], username=sshconfig['username'], remote_host=sshconfig['server'], passwordFile=passwordFile)
 
     #run the dc_script.tcl
     synth_run_cmd = "dc_shell-t -f " + "remote_dc_script.tcl" + " | tee dc.log"
-    RemoteUtils.run_cmd(synth_run_cmd, sshconfig['username'], remote_host=sshconfig['server'], remotedir=sshconfig['remotedir'])
+    RemoteUtils.run_cmd(synth_run_cmd, sshconfig['username'], remote_host=sshconfig['server'], remotedir=sshconfig['remotedir'], passwordFile=passwordFile)
 
     #copy the reports to the appropriate directory
-    RemoteUtils.copyDirFromServer(os.path.join(sshconfig['remotedir'], remote_report_path), syn_report_path, username=sshconfig['username'], remote_host=sshconfig['server'])
+    RemoteUtils.copyDirFromServer(os.path.join(sshconfig['remotedir'], remote_report_path), report_path, username=sshconfig['username'], remote_host=sshconfig['server'], passwordFile=passwordFile)
     
     #copy the outputs to the appropriate directory
-    RemoteUtils.copyDirFromServer(os.path.join(sshconfig['remotedir'], remote_output_path), syn_output_path, username=sshconfig['username'], remote_host=sshconfig['server'])
+    RemoteUtils.copyDirFromServer(os.path.join(sshconfig['remotedir'], remote_output_path), output_path, username=sshconfig['username'], remote_host=sshconfig['server'], passwordFile=passwordFile)
 
-    return syn_report_path, syn_output_path
+    return report_path, output_path
     
   else:
     syn_report_path, syn_output_path = write_synth_tcl(flow_settings,clock_period,wire_selection)
