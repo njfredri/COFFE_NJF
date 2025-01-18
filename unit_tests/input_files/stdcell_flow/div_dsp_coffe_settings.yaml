@@ -240,7 +240,7 @@ asic_hardblock_params:
 
       #Absolute paths to directories containing power_timing_noise information for the desired process
       process_lib_paths : 
-        - /mscad/apps/Linux/synopsys/syn/R-2020.09-SP5-3/libraries/syn
+        - /mscad/apps/Linux/synopsys_64bit/SAED_EDK90nm/Digital_Standard_Cell_Library/synopsys/models
         # - /CMC/kits/tsmc_65nm_libs/tcbn65gplus/TSMCHOME/digital/Front_End/timing_power_noise/NLDM/tcbn65gplus_140b
         # - /CMC/kits/tsmc_65nm_libs/tpzn65gpgv2/TSMCHOME/digital/Front_End/timing_power_noise/NLDM/tpzn65gpgv2_140c
       #absolute paths to directories in remote server
@@ -250,11 +250,9 @@ asic_hardblock_params:
       # Location of the library files.
       # if you have more than one library, please provide them similiar to the example below.
       target_libraries :
-        - /mscad/apps/Linux/synopsys/syn/R-2020.09-SP5-3/libraries/syn/power_sample.db
+        - /mscad/apps/Linux/synopsys_64bit/SAED_EDK90nm/Digital_Standard_Cell_Library/synopsys/models/saed90nm_typ.db
 #       - /CMC/kits/tsmc_65nm_libs/tcbn65gplus/TSMCHOME/digital/Front_End/timing_power_noise/NLDM/tcbn65gplus_140b/tcbn65gpluswc.db
       # - /CMC/kits/tsmc_65nm_libs/tpzn65gpgv2/TSMCHOME/digital/Front_End/timing_power_noise/NLDM/tpzn65gpgv2_140c/tpzn65gpgv2wc.db
-
-      pnr_tool : innovus
 
       #Libraries required in EDI:
       metal_layers : [8]
@@ -292,27 +290,36 @@ asic_hardblock_params:
       #name of the core site in the floorplan. can be obtained from lef files.
       core_site_name : core
 
-      lef_files : 
-        - /CMC/kits/tsmc_65nm_libs/tcbn65gplus/TSMCHOME/digital/Back_End/lef/tcbn65gplus_200a/lef/tcbn65gplus_9lmT2.lef
-        - /CMC/kits/tsmc_65nm_libs/tpzn65gpgv2/TSMCHOME/digital/Back_End/lef/tpzn65gpgv2_140c/mt_2/9lm/lef/antenna_9lm.lef
-        - /CMC/kits/tsmc_65nm_libs/tpzn65gpgv2/TSMCHOME/digital/Back_End/lef/tpzn65gpgv2_140c/mt_2/9lm/lef/tpzn65gpgv2_9lm.lef
+      lef_files :
+        - /mscad/apps/Linux/synopsys_64bit/SAED_EDK90nm/Digital_Standard_Cell_Library/lef/saed90nm.lef
+        - /mscad/apps/Linux/synopsys_64bit/SAED_EDK90nm/Digital_Standard_Cell_Library/lef/saed90nm_hvt.lef
+        - /mscad/apps/Linux/synopsys_64bit/SAED_EDK90nm/Digital_Standard_Cell_Library/lef/saed90nm_tech.lef
+        # - /CMC/kits/tsmc_65nm_libs/tcbn65gplus/TSMCHOME/digital/Back_End/lef/tcbn65gplus_200a/lef/tcbn65gplus_9lmT2.lef
+        # - /CMC/kits/tsmc_65nm_libs/tpzn65gpgv2/TSMCHOME/digital/Back_End/lef/tpzn65gpgv2_140c/mt_2/9lm/lef/antenna_9lm.lef
+        # - /CMC/kits/tsmc_65nm_libs/tpzn65gpgv2/TSMCHOME/digital/Back_End/lef/tpzn65gpgv2_140c/mt_2/9lm/lef/tpzn65gpgv2_9lm.lef
 
       best_case_libs : 
-        - /CMC/kits/tsmc_65nm_libs/tcbn65gplus/TSMCHOME/digital/Front_End/timing_power_noise/NLDM/tcbn65gplus_140b/tcbn65gplusbc.lib
-        - /CMC/kits/tsmc_65nm_libs/tpzn65gpgv2/TSMCHOME/digital/Front_End/timing_power_noise/NLDM/tpzn65gpgv2_140c/tpzn65gpgv2bc.lib
+        - /mscad/apps/Linux/synopsys_64bit/SAED_EDK90nm/Digital_Standard_Cell_Library/synopsys/models/saed90nm_typ_ltl_ccs.lib
+        # - /CMC/kits/tsmc_65nm_libs/tcbn65gplus/TSMCHOME/digital/Front_End/timing_power_noise/NLDM/tcbn65gplus_140b/tcbn65gplusbc.lib
+        # - /CMC/kits/tsmc_65nm_libs/tpzn65gpgv2/TSMCHOME/digital/Front_End/timing_power_noise/NLDM/tpzn65gpgv2_140c/tpzn65gpgv2bc.lib
 
       standard_libs : 
-        - /CMC/kits/tsmc_65nm_libs/tcbn65gplus/TSMCHOME/digital/Front_End/timing_power_noise/NLDM/tcbn65gplus_140b/tcbn65gplustc.lib
-        - /CMC/kits/tsmc_65nm_libs/tpzn65gpgv2/TSMCHOME/digital/Front_End/timing_power_noise/NLDM/tpzn65gpgv2_140c/tpzn65gpgv2tc.lib
+        - /mscad/apps/Linux/synopsys_64bit/SAED_EDK90nm/Digital_Standard_Cell_Library/synopsys/models/saed90nm_typ.lib
+        # - /CMC/kits/tsmc_65nm_libs/tcbn65gplus/TSMCHOME/digital/Front_End/timing_power_noise/NLDM/tcbn65gplus_140b/tcbn65gplustc.lib
+        # - /CMC/kits/tsmc_65nm_libs/tpzn65gpgv2/TSMCHOME/digital/Front_End/timing_power_noise/NLDM/tpzn65gpgv2_140c/tpzn65gpgv2tc.lib
 
       worst_case_libs : 
-        - /CMC/kits/tsmc_65nm_libs/tcbn65gplus/TSMCHOME/digital/Front_End/timing_power_noise/NLDM/tcbn65gplus_140b/tcbn65gpluswc.lib
-        - /CMC/kits/tsmc_65nm_libs/tpzn65gpgv2/TSMCHOME/digital/Front_End/timing_power_noise/NLDM/tpzn65gpgv2_140c/tpzn65gpgv2wc.lib
+        - /mscad/apps/Linux/synopsys_64bit/SAED_EDK90nm/Digital_Standard_Cell_Library/synopsys/models/saed90nm_typ_ht_hvt.lib
+        # - /CMC/kits/tsmc_65nm_libs/tcbn65gplus/TSMCHOME/digital/Front_End/timing_power_noise/NLDM/tcbn65gplus_140b/tcbn65gpluswc.lib
+        # - /CMC/kits/tsmc_65nm_libs/tpzn65gpgv2/TSMCHOME/digital/Front_End/timing_power_noise/NLDM/tpzn65gpgv2_140c/tpzn65gpgv2wc.lib
 
       #Timing Power Libraries used for PT timing/power analysis
       primetime_libs : 
-        - tpzn65gpgv2wc.db
-        - tcbn65gpluswc.db
+      - /mscad/apps/Linux/synopsys_64bit/SAED_EDK90nm/Digital_Standard_Cell_Library/synopsys/models/saed90nm_typ.tb
+      - /mscad/apps/Linux/synopsys_64bit/SAED_EDK90nm/Digital_Standard_Cell_Library/synopsys/models/saed90nm_typ_ht_hvt.db
+
+        # - tpzn65gpgv2wc.db
+        # - tcbn65gpluswc.db
 
       ########################################
       ########## Synthesis Settings ##########
@@ -333,9 +340,9 @@ asic_hardblock_params:
       synth_folder : ~/tools/COFFE_NJF/unit_tests/output_files/div_dsp/synth
 
       # The name of tte folder in the remote server in which post-synthesis files and synthesis reports are to be stored
-      remote_synth_folder : /home/njfredri/test
+      # remote_synth_folder : /home/njfredri/test
       remote_synopsys_env : /home/njfredri/test #replaces SYNOPSYS environment variable
-      remote_design_folder : /home/njfredri/test/hdl
+      # remote_design_folder : /home/njfredri/test/hdl
       
 
       # Do you want to be informed of warnings during synthesis?
@@ -360,6 +367,8 @@ asic_hardblock_params:
       ##############################################
       ########## Place and Route Settings ##########
       ##############################################
+
+      remote_pnr : True
 
       #This can be of value "innovus" or "encounter" depending on version of cadence pnr tool used
       pnr_tool : encounter
