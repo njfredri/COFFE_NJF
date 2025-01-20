@@ -157,6 +157,8 @@ def flow_settings_pre_process(processed_flow_settings,cur_env):
     with open(os.path.join(coffepath, 'ssh_config.json'), "r") as configfile:
       sshconfig = json.load(configfile)
     processed_flow_settings['remote_pnr_folder'] = os.path.join(sshconfig['remotedir'], 'pnr')
+    processed_flow_settings['remote_pnr_inputs'] = os.path.join(processed_flow_settings['remote_pnr_folder'], 'inputs')
+    processed_flow_settings['remote_pnr_pr'] = os.path.join(processed_flow_settings['remote_pnr_folder'], 'pr') #where the outputs go
 
   #creating search path values
   for p_lib_path in processed_flow_settings["process_lib_paths"]:
@@ -1311,6 +1313,10 @@ def write_enc_script(flow_settings,metal_layer,core_utilization):
 def write_remote_enc_script(flow_settings,metal_layer,core_utilization):
   """
   Writes script for place and route using cadence encounter (tested under 2009 version)
+  Runs on remote server via ssh
+  TODO: modify to allow for synthesized_hier.v to be used
+  TODO: confirm if the tilehi_tielo cells are between power and ground in these cases
+  TODO: 
   """
   # generate the EDI (encounter) configuration
   file = open("edi.conf", "w")
@@ -1320,10 +1326,11 @@ def write_remote_enc_script(flow_settings,metal_layer,core_utilization):
   file.write("set rda_Input(ui_timelib,min) " + flow_settings['best_case_libs'] + "\n")
   file.write("set rda_Input(ui_timelib) " + flow_settings['standard_libs'] + "\n")
   file.write("set rda_Input(ui_timelib,max) " + flow_settings['worst_case_libs'] + "\n")
-  file.write("set rda_Input(ui_netlist) " + os.path.expanduser(flow_settings['synth_folder']) + "/synthesized.v" + "\n")
+  #                                                               change to remote pnr_inputs  Change to synthesized_flat.v
+  file.write("set rda_Input(ui_netlist) " + os.path.join(flow_settings['remote_pnr_inputs'], 'synthesized_flat.v') + "\n")
   file.write("set rda_Input(ui_netlisttype) {Verilog} \n")
   file.write("set rda_Input(import_mode) {-treatUndefinedCellAsBbox 0 -keepEmptyModule 1}\n")
-  file.write("set rda_Input(ui_timingcon_file) " + os.path.expanduser(flow_settings['synth_folder']) + "/synthesized.sdc" + "\n")
+  file.write("set rda_Input(ui_timingcon_file) " + os.path.join(flow_settings['remote_pnr_inputs'], "synthesized.sdc") + "\n")
   file.write("set rda_Input(ui_topcell) " + flow_settings['top_level'] + "\n\n")
   gnd_pin = flow_settings['gnd_pin']
   gnd_net = flow_settings['gnd_net']
@@ -1388,8 +1395,8 @@ def write_remote_enc_script(flow_settings,metal_layer,core_utilization):
   file.write("checkPlace " + flow_settings['top_level'] +" \n")
   file.write("trialroute \n")
   file.write("buildTimingGraph \n")
-  file.write("timeDesign -preCTS -idealClock -numPaths 10 -prefix preCTS -outDir " + os.path.expanduser(flow_settings['pr_folder']) + "/timeDesignpreCTSReports" + "\n")
-  file.write("optDesign -preCTS -outDir " + os.path.expanduser(flow_settings['pr_folder']) + "/optDesignpreCTSReports" + "\n")
+  file.write("timeDesign -preCTS -idealClock -numPaths 10 -prefix preCTS -outDir " + os.path.join(flow_settings['remote_pnr_pr'], "timeDesignpreCTSReports") + "\n")
+  file.write("optDesign -preCTS -outDir " + os.path.join(flow_settings['remote_pnr_pr'], "optDesignpreCTSReports") + "\n")
   # I won't do a CTS anyway as the blocks are small.
   file.write("addFiller -cell {" + " ".join([str(item) for item in flow_settings['filler_cell_names']]) + "} -prefix FILL -merge true \n")  
   file.write("clearGlobalNets \n")
@@ -1418,24 +1425,24 @@ def write_remote_enc_script(flow_settings,metal_layer,core_utilization):
   file.write("setExtractRCMode -engine postRoute \n")
   file.write("extractRC \n")
   file.write("buildTimingGraph \n")
-  file.write("timeDesign -postRoute -outDir " + os.path.expanduser(flow_settings['pr_folder']) + "/timeDesignReports" + "\n")
-  file.write("optDesign -postRoute -outDir " + os.path.expanduser(flow_settings['pr_folder']) + "/optDesignReports" + "\n")
+  file.write("timeDesign -postRoute -outDir " + os.path.join(flow_settings['remote_pnr_pr'], "/timeDesignReports") + "\n")
+  file.write("optDesign -postRoute -outDir " + os.path.join(flow_settings['remote_pnr_pr'], "/optDesignReports") + "\n")
   #by default, violations are reported in designname.geom.rpt
-  file.write("verifyGeometry -report " + (os.path.expanduser(flow_settings['pr_folder']) + "/" + flow_settings['top_level'] + ".geom.rpt") + "\n")
+  file.write("verifyGeometry -report " + (flow_settings['remote_pnr_pr']) + "/" + flow_settings['top_level'] + ".geom.rpt" + "\n")
   #by default, violations are reported in designname.conn.rpt
-  file.write("verifyConnectivity -type all -report " + (os.path.expanduser(flow_settings['pr_folder']) + "/" + flow_settings['top_level'] + ".conn.rpt") + "\n")
+  file.write("verifyConnectivity -type all -report " + (flow_settings['remote_pnr_pr']) + "/" + flow_settings['top_level'] + ".conn.rpt" + "\n")
   # report area
-  file.write("summaryReport -outFile " + os.path.expanduser(flow_settings['pr_folder']) + "/pr_report.txt \n")
+  file.write("summaryReport -outFile " + (flow_settings['remote_pnr_pr']) + "/pr_report.txt \n")
   # save design
-  file.write(r'saveNetlist ' + os.path.expanduser(flow_settings['pr_folder']) + r'/netlist.v' + "\n")
-  file.write(r'saveDesign ' + os.path.expanduser(flow_settings['pr_folder']) + r'/design.enc' + " \n")
-  file.write(r'rcOut -spef ' + os.path.expanduser(flow_settings['pr_folder']) + r'/spef.spef' + " \n")
-  file.write(r'write_sdf -ideal_clock_network ' + os.path.expanduser(flow_settings['pr_folder']) + r'/sdf.sdf' + " \n")
+  file.write(r'saveNetlist ' + (flow_settings['remote_pnr_pr']) + r'/netlist.v' + "\n")
+  file.write(r'saveDesign ' + (flow_settings['remote_pnr_pr']) + r'/design.enc' + " \n")
+  file.write(r'rcOut -spef ' + (flow_settings['remote_pnr_pr']) + r'/spef.spef' + " \n")
+  file.write(r'write_sdf -ideal_clock_network ' + os.path.expanduser(flow_settings['remote_pnr_pr']) + r'/sdf.sdf' + " \n")
   #If the user specified a layer mapping file, then use that. Otherwise, just let the tool create a default one.
   if flow_settings['map_file'] != "None":
-    file.write(r'streamOut ' + os.path.expanduser(flow_settings['pr_folder']) + r'/final.gds2' + ' -mapFile ' + flow_settings['map_file'] + ' -stripes 1 -units 1000 -mode ALL' + "\n")
+    file.write(r'streamOut ' + (flow_settings['remote_pnr_pr']) + r'/final.gds2' + ' -mapFile ' + flow_settings['map_file'] + ' -stripes 1 -units 1000 -mode ALL' + "\n")
   else:
-    file.write(r'streamOut ' + os.path.expanduser(flow_settings['pr_folder']) + r'/final.gds2' + ' -stripes 1 -units 1000 -mode ALL' + "\n")
+    file.write(r'streamOut ' + (flow_settings['remote_pnr_pr']) + r'/final.gds2' + ' -stripes 1 -units 1000 -mode ALL' + "\n")
   file.write("exit \n")
   file.close()
 
