@@ -371,7 +371,7 @@ asic_hardblock_params:
       remote_pnr : True
 
       #This can be of value "innovus" or "encounter" depending on version of cadence pnr tool used
-      pnr_tool : encounter
+      pnr_tool : innovus
 
       #name of the file to use for layer mapping. used for stream out.
       #set it to None if you want the tool to create a generic map file
