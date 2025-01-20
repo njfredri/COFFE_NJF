@@ -1506,11 +1506,19 @@ def run_pnr(flow_settings,metal_layer,core_utilization,synth_report_str,syn_outp
       dir_to_create.append('mkdir ./pnr/inputs')
       dir_to_create.append('mkdir ./pnr/pr')
       RemoteUtils.run_cmds(cmds=dir_to_create, username=sshconfig['username'], remote_host=sshconfig['server'], passwordFile=sshconfig['passwordfile'], remotedir=sshconfig['remotedir'])
-      # print('Current work directory in run_pnr: ' + str(os.getcwd()))
+      print('Current work directory in run_pnr: ' + str(os.getcwd()))
       # print('synth output dir in run_pnr()' + syn_output_path)
-      #copy inputfiles to inputs folder
+      #copy input files to inputs folder
       filesToUpload = []
-      filesToUpload.append(os.path.join(syn_output_path, ))
+      filesToUpload.append(os.path.join(syn_output_path, 'synthesized_flat.v'))
+      filesToUpload.append(os.path.join(syn_output_path, 'synthesized.sdc'))
+      RemoteUtils.copyFilesToServer(files=filesToUpload, remotedir=flow_settings['remote_pnr_inputs'], username=sshconfig['username'], remote_host=sshconfig['server'], passwordFile=sshconfig['passwordfile'])
+      #copy configuration and script files
+      filesToUpload = []
+      filesToUpload.append('edi.conf')
+      filesToUpload.append('edi.tcl')
+      RemoteUtils.copyFilesToServer(files=filesToUpload, remotedir=flow_settings['remote_pnr_folder'], username=sshconfig['username'], remote_host=sshconfig['server'], passwordFile=sshconfig['passwordfile'])
+
   else:
     work_dir = os.getcwd()
     pnr_report_str = synth_report_str + "_" + "metal_layers_" + metal_layer + "_" + "util_" + core_utilization
