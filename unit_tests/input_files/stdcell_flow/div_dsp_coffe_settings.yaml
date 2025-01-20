@@ -369,6 +369,7 @@ asic_hardblock_params:
       ##############################################
 
       remote_pnr : True
+      remote_innovus_home : /mscad/apps/Linux/cadence/INNOVUS21.1
 
       #This can be of value "innovus" or "encounter" depending on version of cadence pnr tool used
       pnr_tool : innovus

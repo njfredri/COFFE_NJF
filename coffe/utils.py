@@ -954,7 +954,8 @@ def load_params(filename,run_options):
                     hb_param['remote_pnr'] = bool(value)
                 # elif param == 'remote_pnr_folder':
                 #     hb_param['remote_pnr_folder'] = str(value)
-                    
+                elif param == 'remote_innovus_home':
+                    hb_param['remote_innovus_home'] = str(value)
                 
             input_param_options = {
                 "period" : "float",
