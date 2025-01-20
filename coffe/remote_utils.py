@@ -79,3 +79,12 @@ class RemoteUtils:
 
         print(command)
         subprocess.call(command,shell=True,executable="/bin/bash")
+
+    def copyFilesToServer(files:list, remotedir, username, remote_host, passwordFile = None):
+        command = 'scp '
+        for file in files:
+            command += file + ' '
+        command += username + '@' + remote_host + ':' + remotedir
+        if passwordFile != None:
+            command = 'sshpass -f ' + passwordFile + ' ' + command
+        subprocess.call(command,shell=True,executable="/bin/bash")
