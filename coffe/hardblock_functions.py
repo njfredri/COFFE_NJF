@@ -1494,7 +1494,23 @@ def run_pnr(flow_settings,metal_layer,core_utilization,synth_report_str,syn_outp
     report_dest_str = os.path.join(flow_settings['pr_folder'],pnr_report_str + "_reports")
     if(flow_settings["pnr_tool"] == 'encounter'):
       write_remote_enc_script(flow_settings, metal_layer, core_utilization)
-    
+      #grab credentials from json
+      sshconfig = None
+      coffepath = os.getcwd()
+      coffepath = os.path.join(coffepath.split('COFFE_NJF')[0], 'COFFE_NJF')
+      # print(coffepath)
+      with open(os.path.join(coffepath, 'ssh_config.json'), "r") as configfile:
+        sshconfig = json.load(configfile)
+      #create the necessary folders
+      dir_to_create = ['mkdir ./pnr']
+      dir_to_create.append('mkdir ./pnr/inputs')
+      dir_to_create.append('mkdir ./pnr/pr')
+      RemoteUtils.run_cmds(cmds=dir_to_create, username=sshconfig['username'], remote_host=sshconfig['server'], passwordFile=sshconfig['passwordfile'], remotedir=sshconfig['remotedir'])
+      # print('Current work directory in run_pnr: ' + str(os.getcwd()))
+      # print('synth output dir in run_pnr()' + syn_output_path)
+      #copy inputfiles to inputs folder
+      filesToUpload = []
+      filesToUpload.append(os.path.join(syn_output_path, ))
   else:
     work_dir = os.getcwd()
     pnr_report_str = synth_report_str + "_" + "metal_layers_" + metal_layer + "_" + "util_" + core_utilization
