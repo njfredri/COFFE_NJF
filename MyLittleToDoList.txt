@@ -1,2 +1,4 @@
-*Have the run copy input files from local location to remote location
-*Call synthesis remotely
+1. copy innovus files to server
+2. copy all input files to server
+3. call innovus remotely
+4. double-check all file paths in the innovus scripts (will be easier by just following the errors)
