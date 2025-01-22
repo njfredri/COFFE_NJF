@@ -1751,11 +1751,43 @@ def run_pnr(flow_settings,metal_layer,core_utilization,synth_report_str,syn_outp
       # report_dest_str = os.path.join(flow_settings['pr_folder'],pnr_report_str + "_reports")
       RemoteUtils.copyDirFromServer(flow_settings['remote_pnr_pr'], localdir=flow_settings['pr_folder'], username=sshconfig['username'], remote_host=sshconfig['server'], passwordFile=sshconfig['passwordfile'])
     elif(flow_settings['pnr_tool'] == 'innovus'):
+      #generate the necessary files
       view_fpath = write_remote_innovus_view_file(flow_settings, flow_settings['remote_pnr_inputs']) #only need to change the syn output path to read sdc file
       view_remote = os.path.join(flow_settings['remote_pnr_folder'], view_fpath.split('/')[-1])
       init_script_fname = write_remote_innovus_init_script(flow_settings, view_remote, flow_settings['remote_pnr_inputs'])
       init_script_remote = os.path.join(flow_settings['remote_pnr_folder'], init_script_fname.split('/')[-1])
       innovus_script_fname, pnr_output_path = write_remote_innovus_script(flow_settings, metal_layer, core_utilization, init_script_remote, cts_flag=False)
+      innovus_script_remote = os.path.join(flow_settings['remote_pnr_folder'], innovus_script_fname.split('/')[-1])
+      print('Innovus Script Files:\n' + str(innovus_script_fname) + '\n' + str(view_fpath) + '\n' + str(init_script_fname))
+      #grab ssh config info 
+      sshconfig = {}
+      coffepath = os.getcwd()
+      coffepath = os.path.join(coffepath.split('COFFE_NJF')[0], 'COFFE_NJF')
+      with open(os.path.join(coffepath, 'ssh_config.json'), "r") as configfile:
+        sshconfig = json.load(configfile)
+      #create the necessary folders
+      dir_to_create = ['mkdir ./pnr']
+      dir_to_create.append('mkdir ./pnr/inputs')
+      dir_to_create.append('mkdir ./pnr/pr')
+      dir_to_create.append('mkdir ./pnr/logs')
+      RemoteUtils.run_cmds(cmds=dir_to_create, username=sshconfig['username'], remote_host=sshconfig['server'], passwordFile=sshconfig['passwordfile'], remotedir=sshconfig['remotedir'])
+      #copy the innovus files to server
+      filesToUpload=[]
+      filesToUpload.append(view_fpath)
+      filesToUpload.append(init_script_fname)
+      filesToUpload.append(innovus_script_fname)
+      RemoteUtils.copyFilesToServer(files=filesToUpload, remotedir=flow_settings['remote_pnr_folder'], username=sshconfig['username'], remote_host=sshconfig['server'], passwordFile=sshconfig['passwordfile'])
+      #copy the input files to server
+      filesToUpload=[]
+      filesToUpload.append(os.path.join(syn_output_path, 'synthesized_flat.v'))
+      filesToUpload.append(os.path.join(syn_output_path, 'synthesized_hier.v'))
+      filesToUpload.append(os.path.join(syn_output_path, 'synthesized.sdc'))
+      RemoteUtils.copyFilesToServer(files=filesToUpload, remotedir=flow_settings['remote_pnr_inputs'], username=sshconfig['username'], remote_host=sshconfig['server'], passwordFile=sshconfig['passwordfile'])
+      #run innovus
+      flow_settings['remote_pnr_logs'] = os.path.join(flow_settings['remote_pnr_folder'], 'logs')
+      run_innovus_cmd = 'innovus -no_gui -init ' + innovus_script_remote + ' -log ' + os.path.join(flow_settings['remote_pnr_logs'], 'innovus.log') + ' | tee inn.log'
+      RemoteUtils.run_cmd(cmd_str=run_innovus_cmd, username=sshconfig['username'], remote_host=sshconfig['server'], passwordFile=sshconfig['passwordfile'], remotedir='')
+      #copy all neccessary logs and report files
   else:
     work_dir = os.getcwd()
     pnr_report_str = synth_report_str + "_" + "metal_layers_" + metal_layer + "_" + "util_" + core_utilization
