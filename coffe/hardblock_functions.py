@@ -12,6 +12,8 @@ import math
 import glob
 import multiprocessing as mp
 import csv
+from coffe.remote_utils import RemoteUtils
+import json
 
 """
 Notes:
@@ -73,7 +75,7 @@ def run_cmd(cmd_str):
   """
   runs command string in a bash shell
   """
-  # print("%s" %(cmd_str))
+  print("Command: %s" %(cmd_str))
   subprocess.call(cmd_str,shell=True,executable="/bin/bash")
 
 def file_write_ln(fd, line):
@@ -98,17 +100,49 @@ def flow_settings_pre_process(processed_flow_settings,cur_env):
   design_files = [fn for _, _, fs in os.walk(design_folder) for fn in fs if ext_re.search(fn)]
   #The syn_write_tcl_script function expects this to be a list of all design files
   processed_flow_settings["design_files"] = design_files
+
+  REMOTE=False
+  sshconfig = {}
+  coffepath = os.getcwd()
+  coffepath = os.path.join(coffepath.split('COFFE_NJF')[0], 'COFFE_NJF')
+  #synth design file setup
+  if processed_flow_settings['remote_synth'] == True:
+    REMOTE=True
+    with open(os.path.join(coffepath, 'ssh_config.json'), "r") as configfile:
+      sshconfig = json.load(configfile)
+    processed_flow_settings['remote_synth_folder'] = os.path.join(sshconfig['remotedir'], 'synth')
+    processed_flow_settings['remote_design_folder'] = os.path.join(processed_flow_settings['remote_synth_folder'], 'design')
+    remote_design_folder = processed_flow_settings['remote_design_folder']
+    design_file_names = [f for f in os.listdir(design_folder) if os.path.isfile(os.path.join(design_folder, f))]
+    #all design files will be in the same folder
+    remote_design_files = [os.path.join(remote_design_folder, f) for f in design_file_names]
+    #override designfiles variable to use remote files and directories instead
+    design_files = remote_design_files
+
   # formatting search_path
   search_path_dirs = []
   search_path_dirs.append(".")
-  try:
-    syn_root = cur_env.get("SYNOPSYS")
-    search_path_dirs = [os.path.join(syn_root,"libraries",dirname) for dirname in ["syn","syn_ver","sim_ver"] ]
-  except:
-    print("could not find 'SYNOPSYS' environment variable set, please source your ASIC tools or run the following command to your sysopsys home directory")
-    print("export SYNOPSYS=/abs/path/to/synopsys/home")
-    print("Ex. export SYNOPSYS=/CMC/tools/synopsys/syn_vN-2017.09/")
-    sys.exit(1)
+  
+  #set the synopsys env
+  if not REMOTE:
+    try:
+      syn_root = cur_env.get("SYNOPSYS")
+      search_path_dirs = [os.path.join(syn_root,"libraries",dirname) for dirname in ["syn","syn_ver","sim_ver"] ]
+    except:
+      print("could not find 'SYNOPSYS' environment variable set, please source your ASIC tools or run the following command to your sysopsys home directory")
+      print("export SYNOPSYS=/abs/path/to/synopsys/home")
+      print("Ex. export SYNOPSYS=/CMC/tools/synopsys/syn_vN-2017.09/")
+      sys.exit(1)
+  else:
+    try:
+      syn_root = processed_flow_settings["remote_synopsys_env"]
+      search_path_dirs = [os.path.join(syn_root,"libraries",dirname) for dirname in ["syn","syn_ver","sim_ver"] ]
+    except:
+      print("could not find 'remote_synopsys_env' variable in input file, please add the variable to you input file")
+      # print("export SYNOPSYS=/abs/path/to/synopsys/home")
+      print("Ex. remote_synopsys_env : /CMC/tools/synopsys/syn_vN-2017.09/")
+      sys.exit(1)
+  
   #Place and route
   if(processed_flow_settings["pnr_tool"] == "innovus"):
     try:
@@ -118,6 +152,14 @@ def flow_settings_pre_process(processed_flow_settings,cur_env):
       print("could not find 'EDI_HOME' environment variable set, please source your ASIC tools or run the following command to your INNOVUS/ENCOUNTER home directory")
       sys.exit(1)
   
+  #remote pnr
+  if processed_flow_settings['remote_pnr'] == True:
+    with open(os.path.join(coffepath, 'ssh_config.json'), "r") as configfile:
+      sshconfig = json.load(configfile)
+    processed_flow_settings['remote_pnr_folder'] = os.path.join(sshconfig['remotedir'], 'pnr')
+    processed_flow_settings['remote_pnr_inputs'] = os.path.join(processed_flow_settings['remote_pnr_folder'], 'inputs')
+    processed_flow_settings['remote_pnr_pr'] = os.path.join(processed_flow_settings['remote_pnr_folder'], 'pr') #where the outputs go
+
   #creating search path values
   for p_lib_path in processed_flow_settings["process_lib_paths"]:
     search_path_dirs.append(p_lib_path)
@@ -127,6 +169,9 @@ def flow_settings_pre_process(processed_flow_settings,cur_env):
       if(ext_re.search(fname)):
         search_path_dirs.append(os.path.join(root,dirname))
   
+  if processed_flow_settings['remote_synth'] == True:
+    search_path_dirs.append(processed_flow_settings['remote_design_folder'])
+
   search_path_str = "\"" + " ".join(search_path_dirs) + "\""
   processed_flow_settings["search_path"] = search_path_str
   #formatting target libs
@@ -265,6 +310,109 @@ def write_synth_tcl(flow_settings,clock_period,wire_selection,rel_outputs=False)
   fd.close()
   return report_path,output_path
 
+########################################## REMOTE SYNTHESIS ####################################
+def write_remote_synth_tcl(flow_settings,clock_period,wire_selection,rel_outputs=False):
+  """
+  Writes the dc_script.tcl file which will be executed to run synthesis using Synopsys Design Compiler, tested under 2017 version.
+  Relative output parameter is to accomodate legacy use of function while allowing the new version to run many scripts in parallel
+  """
+  report_path = flow_settings['synth_folder'] if (not rel_outputs) else os.path.join("..","reports")
+  output_path = flow_settings['synth_folder'] if (not rel_outputs) else os.path.join("..","outputs")
+  remote_report_path = os.path.join(flow_settings['remote_synth_folder'], 'reports')
+  remote_output_path = os.path.join(flow_settings['remote_synth_folder'], 'outputs')
+  report_path = os.path.abspath(report_path)
+  output_path = os.path.abspath(output_path)
+
+  #Below lines could be done in the preprocessing function
+  #create var named my_files of a list of design files
+  if len(flow_settings["design_files"]) == 1:
+    print('*****only 1 design file')
+    design_files_str = "set my_files " + flow_settings["design_files"][0]
+  else:
+    print('*****more than 1 design file')
+    design_files_str = "set my_files [list " + " ".join([ent for ent in flow_settings["design_files"] if (ent != "parameters.v" and ent  != "c_functions.v") ]) + " ]"
+  #analyze design files based on RTL lang
+  if flow_settings['design_language'] == 'verilog':
+    analyze_cmd_str = "analyze -f verilog $my_files"
+  elif flow_settings['design_language'] == 'vhdl':
+    analyze_cmd_str = "analyze -f vhdl $my_files"
+  else:
+    analyze_cmd_str = "analyze -f sverilog $my_files"
+
+  #If wire_selection is None, then no wireload model is used during synthesis. This does imply results 
+  #are not as accurate (wires don't have any delay and area), but is useful to let the flow work/proceed 
+  #if the std cell library is missing wireload models.
+  if wire_selection != "None":
+    wire_ld_sel_str = "set_wire_load_selection " + wire_selection
+  else:
+    wire_ld_sel_str = "#No WIRE LOAD MODEL SELECTED, RESULTS NOT AS ACCURATE"
+
+  if flow_settings['read_saif_file']:
+    sw_activity_str = "read_saif saif.saif"
+  else:
+    sw_activity_str = "set_switching_activity -static_probability " + str(flow_settings['static_probability']) + " -toggle_rate " + str(flow_settings['toggle_rate']) + " -base_clock $my_clock_pin -type inputs"
+
+  #Ungrouping settings command
+  if flow_settings["ungroup_regex"] != "":
+    set_ungroup_cmd = "set_attribute [get_cells -regex " + "\"" + flow_settings["ungroup_regex"] + "\"" + "] ungroup false" #this will ungroup all blocks
+  else:
+    set_ungroup_cmd = "# NO UNGROUPING SETTINGS APPLIED, MODULES WILL BE FLATTENED ACCORDING TO DC"
+    
+  synthesized_fname = "synthesized"
+  file_lines = [
+    #This line sets the naming convention of DC to not add parameters to module insts
+    "set template_parameter_style \"\"",
+    "set template_naming_style \"%s\"",
+    "set search_path " + flow_settings["search_path"],
+    design_files_str,
+    "set my_top_level " + flow_settings['top_level'],
+    "set my_clock_pin " + flow_settings['clock_pin_name'],
+    "set target_library " + flow_settings["target_library"],
+    "set link_library " + flow_settings["link_library"],
+    "set power_analysis_mode \"averaged\"",
+    "define_design_lib WORK -path ./WORK",
+    analyze_cmd_str,
+    "elaborate $my_top_level",
+    "current_design $my_top_level",
+    "check_design > " +                             os.path.join(remote_report_path,"check_precompile.rpt"),
+    "link",
+    "uniquify",
+    wire_ld_sel_str,
+    "set my_period " + str(clock_period),
+    "set find_clock [ find port [list $my_clock_pin] ]",
+    "if { $find_clock != [list] } { ",
+    "set clk_name $my_clock_pin ",
+    "create_clock -period $my_period $clk_name}",
+    set_ungroup_cmd,
+    # "set_app_var compile_ultra_ungroup_dw false",
+    # "set_app_var compile_seqmap_propagate_constants false",
+    "compile_ultra", #-no_autoungroup",
+    "check_design >  " +                            os.path.join(remote_report_path,"check.rpt"),
+    "write -format verilog -hierarchy -output " +   os.path.join(remote_output_path,synthesized_fname+"_hier.v"),
+    "write_file -format ddc -hierarchy -output " +  os.path.join(remote_output_path,flow_settings['top_level'] + ".ddc"),
+    sw_activity_str,
+    "ungroup -all -flatten ",
+    "report_power > " +                             os.path.join(remote_report_path,"power.rpt"),
+    "report_area -nosplit -hierarchy > " +          os.path.join(remote_report_path,"area.rpt"),
+    "report_resources -nosplit -hierarchy > " +     os.path.join(remote_report_path,"resources.rpt"),
+    "report_design > " +                            os.path.join(remote_report_path,"design.rpt"),
+    "all_registers > " +                            os.path.join(remote_report_path,"registers.rpt"),
+    "report_timing -delay max > " +                 os.path.join(remote_report_path,"setup_timing.rpt"),
+    "report_timing -delay min > " +                 os.path.join(remote_report_path,"hold_timing.rpt"),
+    "change_names -hier -rule verilog ",    
+    "write -f verilog -output " +                   os.path.join(remote_output_path,synthesized_fname+"_flat.v"),
+    "write_sdf " +                                  os.path.join(remote_output_path,synthesized_fname+".sdf"),
+    "write_parasitics -output " +                   os.path.join(remote_output_path,synthesized_fname+".spef"),
+    "write_sdc " +                                  os.path.join(remote_output_path,synthesized_fname+".sdc")
+  ]
+  fd = open("remote_dc_script.tcl","w+")
+  for line in file_lines:
+    file_write_ln(fd,line)
+  file_write_ln(fd,"quit")
+  fd.close()
+  print('******in write_remote_synth_tcl() the remote output and report directories are ' + str(remote_output_path) + ' ' + str(remote_report_path))
+  return report_path,output_path, remote_report_path, remote_output_path
+
 ########################################## SYNTH UTILS ##########################################
 def get_dc_cmd(script_path):
   syn_shell = "dc_shell-t"
@@ -311,60 +459,117 @@ def run_synth(flow_settings,clock_period,wire_selection):
   runs the synthesis flow for specific clock period and wireload model
   Prereqs: flow_settings_pre_process() function to properly format params for scripts
   """
-  syn_report_path, syn_output_path = write_synth_tcl(flow_settings,clock_period,wire_selection)
-  # Run the script in design compiler shell
-  synth_run_cmd = "dc_shell-t -f " + "dc_script.tcl" + " | tee dc.log"
-  run_cmd(synth_run_cmd)
-  # clean after DC!
-  subprocess.call('rm -rf command.log', shell=True)
-  subprocess.call('rm -rf default.svf', shell=True)
-  subprocess.call('rm -rf filenames.log', shell=True)
+  if(flow_settings['remote_synth'] == True):
+    print("*****run_synth() using remote synthesis. (Comment out or remove this print statement)")
+    #TODO: remove the unneccessary returns. Remote output and report path should just be autogenerated. User should not need to specify.
+    report_path, output_path, _, _ = write_remote_synth_tcl(flow_settings,clock_period,wire_selection)
+    remote_synth_path = './synth'
+    remote_design_path = './synth/design'
+    remote_output_path = './synth/outputs'
+    remote_report_path = './synth/reports'
 
-  check_synth_run(flow_settings,syn_report_path)
+    if 'dev_skip_remote_synth' in flow_settings.keys():
+      if flow_settings['dev_skip_remote_synth'] == True:
+        return report_path, output_path #return early to skip synthesis step during development
+    
+    #grab credentials from json
+    sshconfig = None
+    coffepath = os.getcwd()
+    coffepath = os.path.join(coffepath.split('COFFE_NJF')[0], 'COFFE_NJF')
+    with open(os.path.join(coffepath, 'ssh_config.json'), "r") as configfile:
+      sshconfig = json.load(configfile)
+    
+    if sshconfig == None: 
+      print("ERROR. Failed to get ssh configuation from 'ssh_config.json'")
+      exit()
 
-  #Copy synthesis results to a unique dir in synth dir
-  synth_report_str = copy_syn_outputs(flow_settings,clock_period,wire_selection,syn_report_path)
-  #if the user doesn't want to perform place and route, extract the results from DC reports and end
-  if flow_settings['synthesis_only']:
-    # read total area from the report file:
-    file = open(flow_settings['synth_folder'] + "/area.rpt" ,"r")
-    for line in file:
-      if line.startswith('Total cell area:'):
-        total_area = re.findall(r'\d+\.{0,1}\d*', line)
-    file.close()
-    # Read timing parameters
-    file = open(flow_settings['synth_folder'] + "/timing.rpt" ,"r")
-    for line in file:
-      if 'library setup time' in line:
-        library_setup_time = re.findall(r'\d+\.{0,1}\d*', line)
-      if 'data arrival time' in line:
-        data_arrival_time = re.findall(r'\d+\.{0,1}\d*', line)
-    try:
-      total_delay =  float(library_setup_time[0]) + float(data_arrival_time[0])
-    except NameError:
-      total_delay =  float(data_arrival_time[0])
-    file.close()    
-    # Read dynamic power
-    file = open(flow_settings['synth_folder'] + "/power.rpt" ,"r")
-    for line in file:
-      if 'Total Dynamic Power' in line:
-        total_dynamic_power = re.findall(r'\d+\.\d*', line)
-        total_dynamic_power[0] = float(total_dynamic_power[0])
-        if 'mW' in line:
-          total_dynamic_power[0] *= 0.001
-        elif 'uw' in line:
-          total_dynamic_power[0] *= 0.000001
-        else:
-          total_dynamic_power[0] = 0
-    file.close()
-    # write the final report file:
-    file = open("report.txt" ,"w")
-    file.write("total area = "  + str(total_area[0]) +  "\n")
-    file.write("total delay = " + str(total_delay) + " ns\n")
-    file.write("total power = " + str(total_dynamic_power[0]) + " W\n")
-    file.close()
-    #return
-  return synth_report_str,syn_output_path
+    passwordFile=None
+    if 'passwordfile' in sshconfig.keys():
+      print('passwordfile was provided')
+      passwordFile = sshconfig['passwordfile']
+
+    # create the appropriate paths for reports and outputs
+    create_paths = []
+    create_paths.append('mkdir ' + remote_synth_path)
+    create_paths.append('mkdir ' + remote_design_path)
+    create_paths.append('mkdir ' + remote_report_path)
+    create_paths.append('mkdir ' + remote_output_path)
+    RemoteUtils.run_cmds(create_paths, username=sshconfig['username'], remote_host=sshconfig['server'], remotedir=sshconfig['remotedir'], passwordFile=passwordFile)
+
+    #copy the dc_script.tcl to server
+    RemoteUtils.copyFileToServer('./remote_dc_script.tcl',  flow_settings['remote_synth_folder'], sshconfig['username'], sshconfig['server'], passwordFile=passwordFile)
+    print('dc_script.tcl copied to server')
+
+    #copy hdl files to server
+    RemoteUtils.copyDirToServer(flow_settings['design_folder'], flow_settings['remote_design_folder'], username=sshconfig['username'], remote_host=sshconfig['server'], passwordFile=passwordFile)
+
+    #run the dc_script.tcl
+    synth_run_cmd = "dc_shell-t -f " + "remote_dc_script.tcl" + " | tee dc.log"
+    RemoteUtils.run_cmd(synth_run_cmd, sshconfig['username'], remote_host=sshconfig['server'], remotedir=flow_settings['remote_synth_folder'], passwordFile=passwordFile)
+
+    #copy the reports to the appropriate directory
+    RemoteUtils.copyDirFromServer(os.path.join(sshconfig['remotedir'], remote_report_path), report_path, username=sshconfig['username'], remote_host=sshconfig['server'], passwordFile=passwordFile)
+    
+    #copy the outputs to the appropriate directory
+    RemoteUtils.copyDirFromServer(os.path.join(sshconfig['remotedir'], remote_output_path), output_path, username=sshconfig['username'], remote_host=sshconfig['server'], passwordFile=passwordFile)
+
+    return report_path, output_path
+    
+  else:
+    syn_report_path, syn_output_path = write_synth_tcl(flow_settings,clock_period,wire_selection)
+    # Run the script in design compiler shell
+    synth_run_cmd = "dc_shell-t -f " + "dc_script.tcl" + " | tee dc.log"
+    run_cmd(synth_run_cmd)
+    # clean after DC!
+    subprocess.call('rm -rf command.log', shell=True)
+    subprocess.call('rm -rf default.svf', shell=True)
+    subprocess.call('rm -rf filenames.log', shell=True)
+
+    check_synth_run(flow_settings,syn_report_path)
+
+    #Copy synthesis results to a unique dir in synth dir
+    synth_report_str = copy_syn_outputs(flow_settings,clock_period,wire_selection,syn_report_path)
+    #if the user doesn't want to perform place and route, extract the results from DC reports and end
+    if flow_settings['synthesis_only']:
+      # read total area from the report file:
+      file = open(flow_settings['synth_folder'] + "/area.rpt" ,"r")
+      for line in file:
+        if line.startswith('Total cell area:'):
+          total_area = re.findall(r'\d+\.{0,1}\d*', line)
+      file.close()
+      # Read timing parameters
+      file = open(flow_settings['synth_folder'] + "/timing.rpt" ,"r")
+      for line in file:
+        if 'library setup time' in line:
+          library_setup_time = re.findall(r'\d+\.{0,1}\d*', line)
+        if 'data arrival time' in line:
+          data_arrival_time = re.findall(r'\d+\.{0,1}\d*', line)
+      try:
+        total_delay =  float(library_setup_time[0]) + float(data_arrival_time[0])
+      except NameError:
+        total_delay =  float(data_arrival_time[0])
+      file.close()    
+      # Read dynamic power
+      file = open(flow_settings['synth_folder'] + "/power.rpt" ,"r")
+      for line in file:
+        if 'Total Dynamic Power' in line:
+          total_dynamic_power = re.findall(r'\d+\.\d*', line)
+          total_dynamic_power[0] = float(total_dynamic_power[0])
+          if 'mW' in line:
+            total_dynamic_power[0] *= 0.001
+          elif 'uw' in line:
+            total_dynamic_power[0] *= 0.000001
+          else:
+            total_dynamic_power[0] = 0
+      file.close()
+      # write the final report file:
+      file = open("report.txt" ,"w")
+      file.write("total area = "  + str(total_area[0]) +  "\n")
+      file.write("total delay = " + str(total_delay) + " ns\n")
+      file.write("total power = " + str(total_dynamic_power[0]) + " W\n")
+      file.close()
+      #return
+      return synth_report_str,syn_output_path
 ########################################## SYNTH RUN FUNCS ##########################################
 ########################################## SYNTHESIS ##########################################
 
@@ -769,6 +974,41 @@ def write_innovus_view_file(flow_settings,syn_output_path):
   view_abs_path = os.path.join(os.getcwd(),fname)
   return view_abs_path 
 
+def write_remote_innovus_view_file(flow_settings,remote_syn_output_path):
+  """Write .view file for innovus place and route, this is used for for creating the delay corners from timing libs and importings constraints"""
+  fname = 'remote_innovus.view'
+
+  file_lines = [
+    "# Version:1.0 MMMC View Definition File\n# Do Not Remove Above Line",
+    #I created a typical delay corner but I don't think its being used as its not called in create_analysis_view command, however, may be useful? not sure but its here
+    #One could put RC values (maybe temperature in here) later for now they will all be the same
+    "create_rc_corner -name RC_BEST -preRoute_res {1.0} -preRoute_cap {1.0} -preRoute_clkres {0.0} -preRoute_clkcap {0.0} -postRoute_res {1.0} -postRoute_cap {1.0} -postRoute_xcap {1.0} -postRoute_clkres {0.0} -postRoute_clkcap {0.0}",
+    "create_rc_corner -name RC_TYP -preRoute_res {1.0} -preRoute_cap {1.0} -preRoute_clkres {0.0} -preRoute_clkcap {0.0} -postRoute_res {1.0} -postRoute_cap {1.0} -postRoute_xcap {1.0} -postRoute_clkres {0.0} -postRoute_clkcap {0.0}",
+    "create_rc_corner -name RC_WORST -preRoute_res {1.0} -preRoute_cap {1.0} -preRoute_clkres {0.0} -preRoute_clkcap {0.0} -postRoute_res {1.0} -postRoute_cap {1.0} -postRoute_xcap {1.0} -postRoute_clkres {0.0} -postRoute_clkcap {0.0}",
+    #create libraries for each timing corner
+    "create_library_set -name MIN_TIMING -timing {" + flow_settings["best_case_libs"] + "}",
+    "create_library_set -name TYP_TIMING -timing {" + flow_settings["standard_libs"] + "}",
+    "create_library_set -name MAX_TIMING -timing {" + flow_settings["worst_case_libs"] + "}",
+    #import constraints from synthesis generated sdc
+    "create_constraint_mode -name CONSTRAINTS -sdc_files {" + os.path.join(remote_syn_output_path,"synthesized.sdc") + "}" ,
+    "create_delay_corner -name MIN_DELAY -library_set {MIN_TIMING} -rc_corner {RC_BEST}",
+    "create_delay_corner -name TYP_DELAY -library_set {TYP_TIMING} -rc_corner {RC_TYP}",
+    "create_delay_corner -name MAX_DELAY -library_set {MAX_TIMING} -rc_corner {RC_WORST}",
+    "create_analysis_view -name BEST_CASE -constraint_mode {CONSTRAINTS} -delay_corner {MIN_DELAY}",
+    "create_analysis_view -name TYP_CASE -constraint_mode {CONSTRAINTS} -delay_corner {TYP_DELAY}",
+    "create_analysis_view -name WORST_CASE -constraint_mode {CONSTRAINTS} -delay_corner {MAX_DELAY}",
+    #This sets our analysis view to be using our worst case analysis view for setup and best for timing,
+    #This makes sense as the BC libs would have the most severe hold violations and vice versa for setup 
+    "set_analysis_view -setup {WORST_CASE} -hold {BEST_CASE}"
+  ]
+  fd = open(fname,"w")
+  for line in file_lines:
+    file_write_ln(fd,line)
+  fd.close()
+  view_abs_path = os.path.join(os.getcwd(),fname)
+  return view_abs_path 
+
+
 def write_innovus_init_script(flow_settings,view_fpath,syn_output_path):
   """
   This function generates init script which sets variables used in pnr,
@@ -831,6 +1071,67 @@ def write_innovus_init_script(flow_settings,view_fpath,syn_output_path):
   init_script_abs_path = os.path.join(os.getcwd(),fname)
   return init_script_abs_path
   
+def write_remote_innovus_init_script(flow_settings, remote_view_filename, syn_output_path):
+  """
+  This function generates init script which sets variables used in pnr,
+  The contents of this file were generated from using the innovus GUI
+  setting relavent files/nets graphically and exporting the .globals file
+  """
+  if(flow_settings["partition_flag"]):
+    init_verilog_cmd = "set init_verilog " + os.path.join(syn_output_path,"synthesized_hier.v")
+  else:
+    init_verilog_cmd = "set init_verilog " + os.path.join(syn_output_path,"synthesized_flat.v")
+
+  flow_settings["lef_files"] = flow_settings["lef_files"].strip("\"")
+  fname = "remote_innovus_init.tcl"
+  file = open(fname,"w")
+  file_lines = [
+    "set_global _enable_mmmc_by_default_flow      $CTE::mmmc_default",
+    "suppressMessage ENCEXT-2799",
+    "set ::TimeLib::tsgMarkCellLatchConstructFlag 1",
+    "set conf_qxconf_file NULL",
+    "set conf_qxlib_file NULL",
+    "set dbgDualViewAwareXTree 1",
+    "set defHierChar /",
+    "set distributed_client_message_echo 1",
+    "set distributed_mmmc_disable_reports_auto_redirection 0",
+    #The below config file comes from the INNOVUS directory, if not using an x86 system this will probably break
+    "set dlgflprecConfigFile " + os.path.join(flow_settings["remote_innovus_home"],"tools.lnx86/dlApp/run_flprec.cfg"),
+    "set enable_ilm_dual_view_gui_and_attribute 1",
+    "set enc_enable_print_mode_command_reset_options 1",
+    "set init_design_settop 0",
+    "set init_gnd_net " + flow_settings["gnd_net"],
+    #/CMC/kits/tsmc_65nm_libs/tcbn65gplus/TSMCHOME/digital/Back_End/lef/tcbn65gplus_200a/lef/tcbn65gplus_9lmT2.lef /CMC/kits/tsmc_65nm_libs/tpzn65gpgv2/TSMCHOME/digital/Back_End/lef/tpzn65gpgv2_140c/mt_2/9lm/lef/antenna_9lm.lef /CMC/kits/tsmc_65nm_libs/tpzn65gpgv2/TSMCHOME/digital/Back_End/lef/tpzn65gpgv2_140c/mt_2/9lm/lef/tpzn65gpgv2_9lm.lef
+    "set init_lef_file {" + flow_settings["lef_files"]  + "}",
+    "set init_mmmc_file {" + remote_view_filename + "}",
+    "set init_pwr_net " + flow_settings["pwr_net"],
+    "set init_top_cell " + flow_settings["top_level"],
+    #"set init_verilog " + os.path.join(syn_output_path,"synthesized_hier.v"),
+    init_verilog_cmd,
+    "get_message -id GLOBAL-100 -suppress",
+    "get_message -id GLOBAL-100 -suppress",
+    "set latch_time_borrow_mode max_borrow",
+    "set pegDefaultResScaleFactor 1",
+    "set pegDetailResScaleFactor 1",
+    "set pegEnableDualViewForTQuantus 1",
+    "get_message -id GLOBAL-100 -suppress",
+    "get_message -id GLOBAL-100 -suppress",
+    "set report_inactive_arcs_format {from to when arc_type sense reason}",
+    "set spgUnflattenIlmInCheckPlace 2",
+    "get_message -id GLOBAL-100 -suppress",
+    "get_message -id GLOBAL-100 -suppress",
+    "set timing_remove_data_path_pessimism_min_slack_threshold -1.70141e+38",
+    "set defStreamOutCheckUncolored false",
+    "set init_verilog_tolerate_port_mismatch 0",
+    "set load_netlist_ignore_undefined_cell 1",
+    "setDesignMode -process " + flow_settings["process_size"],
+    "init_design"
+  ]
+  for line in file_lines:
+    file_write_ln(file,line)
+  file.close()
+  init_script_abs_path = os.path.join(os.getcwd(),fname)
+  return init_script_abs_path
 
 def write_innovus_script(flow_settings,metal_layer,core_utilization,init_script_fname,rel_outputs=False,cts_flag=False):
   """
@@ -956,6 +1257,146 @@ def write_innovus_script(flow_settings,metal_layer,core_utilization,init_script_
     "saveDesign " +  os.path.join(output_path,"design.enc"),
     "rcOut -spef " +  os.path.join(output_path,"spef.spef"),
     "write_sdf -ideal_clock_network " + os.path.join(output_path,"sdf.sdf"),
+    stream_out_cmd
+  ]
+  #flatten list
+  file_lines = flatten_mixed_list(file_lines)
+  file = open(fname,"w")
+  for line in file_lines:
+    file_write_ln(file,line)
+  file_write_ln(file,"exit")
+  file.close()
+  
+  return fname,output_path
+
+def write_remote_innovus_script(flow_settings,metal_layer,core_utilization,init_script_fname,rel_outputs=False,cts_flag=False):
+  """
+  This function writes the innvous script which actually performs place and route.
+  Precondition to this script is the creation of an initialization script which is sourced on the first line.
+  Script will be run remotely via ssh
+  """
+
+  report_path = flow_settings['pr_folder'] if (not rel_outputs) else os.path.join("..","reports")
+  output_path = flow_settings['pr_folder'] if (not rel_outputs) else os.path.join("..","outputs")
+  
+  report_path = os.path.abspath(report_path)
+  output_path = os.path.abspath(output_path)
+
+  remote_report_path = flow_settings['remote_pnr_pr']
+  remote_output_path = flow_settings['remote_pnr_pr']
+
+  #some format adjustment (could move to preproc function)
+  core_utilization = str(core_utilization)
+  metal_layer = str(metal_layer)
+  flow_settings["power_ring_spacing"] = str(flow_settings["power_ring_spacing"])
+
+  #filename
+  fname = "remote_innovus.tcl" #hardcoding the remote script. Hard-coding the name should not be too bad.
+  
+  #cts commands
+  if cts_flag: 
+    cts_cmds = [
+      "create_ccopt_clock_tree_spec",
+      "ccopt_design",
+      "timeDesign -postCTS -prefix postCTSpreOpt -outDir " + os.path.join(remote_report_path,"timeDesignPostCTSReports"),
+      "optDesign -postCTS -prefix postCTSOpt -outDir " + os.path.join(remote_report_path,"optDesignPostCTSReports"),
+      "timeDesign -postCTS -prefix postCTSpostOpt -outDir " + os.path.join(remote_report_path,"timeDesignPostCTSReports")
+    ]
+  else:
+    cts_cmds = ["#CTS NOT PERFORMED"]
+  
+  #If the user specified a layer mapping file, then use that. Otherwise, just let the tool create a default one.
+  if flow_settings['map_file'] != "None":
+    stream_out_cmd = "streamOut " +  os.path.join(flow_settings['remote_pnr_pr'],"final.gds2") + " -mapFile " + flow_settings["map_file"] + " -stripes 1 -units 1000 -mode ALL"
+  else:
+    stream_out_cmd = "streamOut " +  os.path.join(flow_settings['remote_pnr_pr'],"final.gds2") + " -stripes 1 -units 1000 -mode ALL"
+
+  metal_layer_bottom = flow_settings["metal_layer_names"][0]
+  metal_layer_second = flow_settings["metal_layer_names"][1]
+  metal_layer_top = flow_settings["metal_layer_names"][int(metal_layer)-1]
+  power_ring_metal_top = flow_settings["power_ring_metal_layer_names"][0] 
+  power_ring_metal_bottom = flow_settings["power_ring_metal_layer_names"][1] 
+  power_ring_metal_left = flow_settings["power_ring_metal_layer_names"][2] 
+  power_ring_metal_right = flow_settings["power_ring_metal_layer_names"][3] 
+
+
+  file_lines = [
+    "source " + init_script_fname,
+    "setDesignMode -process " + flow_settings["process_size"],
+    "floorPlan -site " +
+    " ".join([flow_settings["core_site_name"],
+    "-r",flow_settings["height_to_width_ratio"],core_utilization,
+    flow_settings["space_around_core"],
+    flow_settings["space_around_core"],
+    flow_settings["space_around_core"],
+    flow_settings["space_around_core"]]),
+    "setDesignMode -topRoutingLayer " + metal_layer,
+    "fit",
+    #Add Power Rings
+    " ".join(["addRing", "-type core_rings","-nets","{" + " ".join([flow_settings["pwr_net"],flow_settings["gnd_net"]]) + "}",
+      "-layer {" + " ".join(["top",metal_layer_bottom,"bottom",metal_layer_bottom,"left",metal_layer_second,"right",metal_layer_second]) + "}",
+      "-width", flow_settings["power_ring_width"],
+      "-spacing", flow_settings["power_ring_spacing"],
+      "-offset", flow_settings["power_ring_width"],
+      "-follow io"]),
+    #Global net connections
+    "clearGlobalNets",
+    "globalNetConnect " + flow_settings["gnd_pin"] + " -type pgpin -pin " + flow_settings["gnd_pin"] + " -inst {}",
+    "globalNetConnect " + flow_settings["pwr_pin"] + " -type pgpin -pin " + flow_settings["pwr_pin"] + " -inst {}",
+    "globalNetConnect " + flow_settings["gnd_net"] + " -type net -net  " + flow_settings["gnd_net"],
+    "globalNetConnect " + flow_settings["pwr_net"] + " -type net -net  " + flow_settings["pwr_net"],
+    "globalNetConnect " + flow_settings["pwr_pin"] + " -type pgpin -pin  " + flow_settings["pwr_pin"] + " -inst *",
+    "globalNetConnect " + flow_settings["gnd_pin"] + " -type pgpin -pin  " + flow_settings["gnd_pin"] + " -inst *",
+    "globalNetConnect " + flow_settings["pwr_pin"] + " -type tiehi -inst *",
+    "globalNetConnect " + flow_settings["gnd_pin"] + " -type tielo -inst *",
+    #special routing for horizontal VDD VSS connections
+    "sroute -connect { blockPin padPin padRing corePin floatingStripe } -layerChangeRange { "+ " ".join([metal_layer_bottom,metal_layer_top]) + " }"\
+     + " -blockPinTarget { nearestRingStripe nearestTarget } -padPinPortConnect { allPort oneGeom } -checkAlignedSecondaryPin 1 -blockPin useLef -allowJogging 1"\
+     + " -crossoverViaBottomLayer " + metal_layer_bottom + " -targetViaBottomLayer " + metal_layer_bottom + " -allowLayerChange 1"\
+     + " -targetViaTopLayer " + metal_layer_top + " -crossoverViaTopLayer " + metal_layer_top + " -nets {" + " ".join([flow_settings["gnd_net"],flow_settings["pwr_net"]]) +  "}",
+    #perform initial placement with IOs
+    "setPlaceMode -fp false -place_global_place_io_pins true",
+    "place_design -noPrePlaceOpt",
+    "earlyGlobalRoute",
+    "timeDesign -preCTS -idealClock -numPaths 10 -prefix preCTSpreOpt -outDir " + os.path.join(remote_report_path,"timeDesignpreCTSReports"),
+    "optDesign -preCTS -outDir " + os.path.join(remote_report_path,"optDesignpreCTSReports"),
+    "timeDesign -preCTS -idealClock -numPaths 10 -prefix preCTSpostOpt -outDir " + os.path.join(remote_report_path,"timeDesignpreCTSReports"),
+    "addFiller -cell {" +  " ".join(flow_settings["filler_cell_names"]) + "} -prefix FILL -merge true",
+    # If cts flag is set perform clock tree synthesis and post cts optimization
+    cts_cmds,
+    
+    #perform routing
+    "setNanoRouteMode -quiet -routeWithTimingDriven 1",
+    "setNanoRouteMode -quiet -routeWithSiDriven 1",
+    "setNanoRouteMode -quiet -routeTopRoutingLayer " + metal_layer,
+    "setNanoRouteMode -quiet -routeBottomRoutingLayer 1",
+    "setNanoRouteMode -quiet -drouteEndIteration 1",
+    "setNanoRouteMode -quiet -routeWithTimingDriven true",
+    "setNanoRouteMode -quiet -routeWithSiDriven true",
+    "routeDesign -globalDetail",
+    "setExtractRCMode -engine postRoute",
+    "extractRC",
+    "buildTimingGraph",
+    "setAnalysisMode -analysisType onChipVariation -cppr both",
+    "timeDesign -postRoute -prefix postRoutePreOpt -outDir " +  os.path.join(remote_report_path,"timeDesignPostRouteReports"),
+    "optDesign -postRoute -prefix postRouteOpt -outDir " +  os.path.join(remote_report_path,"optDesignPostRouteReports"),
+    "timeDesign -postRoute -prefix postRoutePostOpt -outDir " +  os.path.join(remote_report_path,"timeDesignPostRouteReports"),
+    #output reports
+    "report_qor -file " + os.path.join(remote_report_path,"qor.rpt"),
+    "verify_drc -report " + os.path.join(remote_report_path,"geom.rpt"),
+    "verifyConnectivity -type all -report " + os.path.join(remote_report_path,"conn.rpt"),
+    "report_timing > " + os.path.join(remote_report_path,"setup_timing.rpt"),
+    "setAnalysisMode -checkType hold",
+    "report_timing > " + os.path.join(remote_report_path,"hold_timing.rpt"),
+    "report_power > " + os.path.join(remote_report_path,"power.rpt"),
+    "report_constraint -all_violators > " + os.path.join(remote_report_path,"violators.rpt"),
+    "report_area > " + os.path.join(remote_report_path,"area.rpt"),
+    "summaryReport -outFile " + os.path.join(remote_report_path,"pr_report.txt"),
+    #output design files
+    "saveNetlist " + os.path.join(remote_output_path,"netlist.v"),
+    "saveDesign " +  os.path.join(remote_output_path,"design.enc"),
+    "rcOut -spef " +  os.path.join(remote_output_path,"spef.spef"),
+    "write_sdf -ideal_clock_network " + os.path.join(remote_output_path,"sdf.sdf"),
     stream_out_cmd
   ]
   #flatten list
@@ -1098,6 +1539,143 @@ def write_enc_script(flow_settings,metal_layer,core_utilization):
     file.write(r'streamOut ' + os.path.expanduser(flow_settings['pr_folder']) + r'/final.gds2' + ' -stripes 1 -units 1000 -mode ALL' + "\n")
   file.write("exit \n")
   file.close()
+
+def write_remote_enc_script(flow_settings,metal_layer,core_utilization):
+  """
+  Writes script for place and route using cadence encounter (tested under 2009 version)
+  Runs on remote server via ssh
+  TODO: modify to allow for synthesized_hier.v to be used
+  TODO: confirm if the tilehi_tielo cells are between power and ground in these cases
+  """
+  # generate the EDI (encounter) configuration
+  file = open("edi.conf", "w")
+  file.write("global rda_Input \n")
+  file.write("set cwd .\n\n")
+  file.write("set rda_Input(ui_leffile) " + flow_settings['lef_files'] + "\n")
+  file.write("set rda_Input(ui_timelib,min) " + flow_settings['best_case_libs'] + "\n")
+  file.write("set rda_Input(ui_timelib) " + flow_settings['standard_libs'] + "\n")
+  file.write("set rda_Input(ui_timelib,max) " + flow_settings['worst_case_libs'] + "\n")
+  #                                                               change to remote pnr_inputs  Change to synthesized_flat.v
+  file.write("set rda_Input(ui_netlist) " + os.path.join(flow_settings['remote_pnr_inputs'], 'synthesized_flat.v') + "\n")
+  file.write("set rda_Input(ui_netlisttype) {Verilog} \n")
+  file.write("set rda_Input(import_mode) {-treatUndefinedCellAsBbox 0 -keepEmptyModule 1}\n")
+  file.write("set rda_Input(ui_timingcon_file) " + os.path.join(flow_settings['remote_pnr_inputs'], "synthesized.sdc") + "\n")
+  file.write("set rda_Input(ui_topcell) " + flow_settings['top_level'] + "\n\n")
+  gnd_pin = flow_settings['gnd_pin']
+  gnd_net = flow_settings['gnd_net']
+  pwr_pin = flow_settings['pwr_pin']
+  pwr_net = flow_settings['pwr_net']
+  file.write("set rda_Input(ui_gndnet) {" + gnd_net + "} \n")
+  file.write("set rda_Input(ui_pwrnet) {" + pwr_net + "} \n")
+  if flow_settings['tilehi_tielo_cells_between_power_gnd'] is True:
+    file.write("set rda_Input(ui_pg_connections) [list {PIN:" + gnd_pin + ":}" + " {TIEL::} " + "{NET:" + gnd_net + ":} {NET:" + pwr_net + ":}" + " {TIEH::} " + "{PIN:" + pwr_pin + ":} ] \n")
+  else:
+    file.write("set rda_Input(ui_pg_connections) [list {PIN:" + gnd_pin + ":} {NET:" + gnd_net + ":} {NET:" + pwr_net + ":} {PIN:" + pwr_pin + ":} ] \n")
+  file.write("set rda_Input(PIN:" + gnd_pin + ":) {" + gnd_pin + "} \n")
+  file.write("set rda_Input(TIEL::) {" + gnd_pin + "} \n")
+  file.write("set rda_Input(NET:" + gnd_net + ":) {" + gnd_net + "} \n")
+  file.write("set rda_Input(PIN:" + pwr_pin + ":) {" + pwr_pin + "} \n")
+  file.write("set rda_Input(TIEH::) {" + pwr_pin + "} \n")
+  file.write("set rda_Input(NET:" + pwr_net + ":) {" + pwr_net + "} \n\n")
+  if (flow_settings['inv_footprint'] != "None"):
+    file.write("set rda_Input(ui_inv_footprint) {" + flow_settings['inv_footprint'] + "}\n")
+  if (flow_settings['buf_footprint'] != "None"):
+    file.write("set rda_Input(ui_buf_footprint) {" + flow_settings['buf_footprint'] + "}\n")
+  if (flow_settings['delay_footprint'] != "None"):
+    file.write("set rda_Input(ui_delay_footprint) {" + flow_settings['delay_footprint'] + "}\n")
+  file.close()
+  metal_layer_bottom = flow_settings["metal_layer_names"][0]
+  metal_layer_second = flow_settings["metal_layer_names"][1]
+  metal_layer_top = flow_settings["metal_layer_names"][int(metal_layer)-1]
+  power_ring_metal_top = flow_settings["power_ring_metal_layer_names"][0] 
+  power_ring_metal_bottom = flow_settings["power_ring_metal_layer_names"][1] 
+  power_ring_metal_left = flow_settings["power_ring_metal_layer_names"][2] 
+  power_ring_metal_right = flow_settings["power_ring_metal_layer_names"][3] 
+  # generate the EDI (encounter) script
+  file = open("edi.tcl", "w")
+  file.write("loadConfig edi.conf \n")
+  file.write("floorPlan -site " + flow_settings['core_site_name'] \
+              + " -r " + str(flow_settings['height_to_width_ratio']) \
+              + " " + str(core_utilization) \
+              + " " + str(flow_settings['space_around_core']) \
+              + " " + str(flow_settings['space_around_core']) + " ")
+  file.write(str(flow_settings['space_around_core']) + " " + str(flow_settings['space_around_core']) + "\n")
+  file.write("setMaxRouteLayer " + str(metal_layer) + " \n")
+  file.write("fit \n")
+  file.write("addRing -spacing_bottom " + str(flow_settings['power_ring_spacing']) \
+              + " -spacing_right " + str(flow_settings['power_ring_spacing']) \
+              + " -spacing_top " + str(flow_settings['power_ring_spacing']) \
+              + " -spacing_left " + str(flow_settings['power_ring_spacing']) \
+              + " -width_right " + str(flow_settings['power_ring_width']) \
+              + " -width_left " + str(flow_settings['power_ring_width']) \
+              + " -width_bottom " + str(flow_settings['power_ring_width']) \
+              + " -width_top " + str(flow_settings['power_ring_width']) \
+              + " -center 1" \
+              + " -around core" \
+              + " -layer_top " + power_ring_metal_top \
+              + " -layer_bottom " + power_ring_metal_bottom \
+              + " -layer_left " + power_ring_metal_left \
+              + " -layer_right " + power_ring_metal_right \
+              + " -nets { " + gnd_net + " " + pwr_net + " }" \
+              + " -stacked_via_top_layer "+ metal_layer_top \
+              + " -stacked_via_bottom_layer " + metal_layer_bottom + " \n")
+  file.write("setPlaceMode -fp false -maxRouteLayer " + str(metal_layer) + "\n")
+  file.write("placeDesign -inPlaceOpt -noPrePlaceOpt \n")
+  file.write("checkPlace " + flow_settings['top_level'] +" \n")
+  file.write("trialroute \n")
+  file.write("buildTimingGraph \n")
+  file.write("timeDesign -preCTS -idealClock -numPaths 10 -prefix preCTS -outDir " + os.path.join(flow_settings['remote_pnr_pr'], "timeDesignpreCTSReports") + "\n")
+  file.write("optDesign -preCTS -outDir " + os.path.join(flow_settings['remote_pnr_pr'], "optDesignpreCTSReports") + "\n")
+  # I won't do a CTS anyway as the blocks are small.
+  file.write("addFiller -cell {" + " ".join([str(item) for item in flow_settings['filler_cell_names']]) + "} -prefix FILL -merge true \n")  
+  file.write("clearGlobalNets \n")
+  file.write("globalNetConnect " + gnd_net + " -type pgpin -pin " + gnd_pin + " -inst {} \n")
+  file.write("globalNetConnect " + pwr_net + " -type pgpin -pin " + pwr_pin + " -inst {} \n")
+  file.write("globalNetConnect " + gnd_net + " -type net -net " + gnd_net + " \n")
+  file.write("globalNetConnect " + pwr_net + " -type net -net " + pwr_net + " \n")
+  file.write("globalNetConnect " + pwr_net + " -type pgpin -pin " + pwr_pin + " -inst * \n")
+  file.write("globalNetConnect " + gnd_net + " -type pgpin -pin " + gnd_pin + " -inst * \n")
+  file.write("globalNetConnect " + pwr_net + " -type tiehi -inst * \n")
+  file.write("globalNetConnect " + gnd_net + " -type tielo -inst * \n")
+  file.write("sroute -connect { blockPin padPin padRing corePin floatingStripe }" \
+              + " -layerChangeRange { " + metal_layer_bottom + " " + metal_layer_top + " }" \
+              + " -blockPinTarget { nearestRingStripe nearestTarget }" \
+              + " -padPinPortConnect { allPort oneGeom }" \
+              + " -checkAlignedSecondaryPin 1" \
+              + " -blockPin useLef" \
+              + " -allowJogging 1" \
+              + " -crossoverViaBottomLayer " + metal_layer_bottom \
+              + " -allowLayerChange 1" \
+              + " -targetViaTopLayer " + metal_layer_top \
+              + " -crossoverViaTopLayer " + metal_layer_top \
+              + " -targetViaBottomLayer " + metal_layer_bottom \
+              + " -nets { " + gnd_net + " " + pwr_net + " } \n")
+  file.write("routeDesign -globalDetail\n")
+  file.write("setExtractRCMode -engine postRoute \n")
+  file.write("extractRC \n")
+  file.write("buildTimingGraph \n")
+  file.write("timeDesign -postRoute -outDir " + os.path.join(flow_settings['remote_pnr_pr'], "/timeDesignReports") + "\n")
+  file.write("optDesign -postRoute -outDir " + os.path.join(flow_settings['remote_pnr_pr'], "/optDesignReports") + "\n")
+  #by default, violations are reported in designname.geom.rpt
+  file.write("verifyGeometry -report " + (flow_settings['remote_pnr_pr']) + "/" + flow_settings['top_level'] + ".geom.rpt" + "\n")
+  #by default, violations are reported in designname.conn.rpt
+  file.write("verifyConnectivity -type all -report " + (flow_settings['remote_pnr_pr']) + "/" + flow_settings['top_level'] + ".conn.rpt" + "\n")
+  # report area
+  file.write("summaryReport -outFile " + (flow_settings['remote_pnr_pr']) + "/pr_report.txt \n")
+  # save design
+  file.write(r'saveNetlist ' + (flow_settings['remote_pnr_pr']) + r'/netlist.v' + "\n")
+  file.write(r'saveDesign ' + (flow_settings['remote_pnr_pr']) + r'/design.enc' + " \n")
+  file.write(r'rcOut -spef ' + (flow_settings['remote_pnr_pr']) + r'/spef.spef' + " \n")
+  file.write(r'write_sdf -ideal_clock_network ' + os.path.expanduser(flow_settings['remote_pnr_pr']) + r'/sdf.sdf' + " \n")
+  #If the user specified a layer mapping file, then use that. Otherwise, just let the tool create a default one.
+  if flow_settings['map_file'] != "None":
+    file.write(r'streamOut ' + (flow_settings['remote_pnr_pr']) + r'/final.gds2' + ' -mapFile ' + flow_settings['map_file'] + ' -stripes 1 -units 1000 -mode ALL' + "\n")
+  else:
+    file.write(r'streamOut ' + (flow_settings['remote_pnr_pr']) + r'/final.gds2' + ' -stripes 1 -units 1000 -mode ALL' + "\n")
+  file.write("exit \n")
+  file.close()
+
+
 ########################################## PNR GENERIC SCRIPTS ##########################################
 ########################################## PNR UTILITY FUNCS ############################################
 def get_innovus_cmd(script_path):
@@ -1138,30 +1716,105 @@ def run_pnr(flow_settings,metal_layer,core_utilization,synth_report_str,syn_outp
   runs place and route using cadence encounter/innovus
   Prereqs: flow_settings_pre_process() function to properly format params for scripts
   """
-  work_dir = os.getcwd()
-  pnr_report_str = synth_report_str + "_" + "metal_layers_" + metal_layer + "_" + "util_" + core_utilization
-  report_dest_str = os.path.join(flow_settings['pr_folder'],pnr_report_str + "_reports")
-  if(flow_settings["pnr_tool"] == "encounter"):
-    write_enc_script(flow_settings,metal_layer,core_utilization)
-    copy_logs_cmd_str = "cp " + "edi.log " + "edi.tcl " + "edi.conf " + "encounter.log " + "encounter.cmd " + report_dest_str
-    encounter_cmd = "encounter -nowin -init edi.tcl | tee edi.log"
-    run_cmd(encounter_cmd)
-  elif(flow_settings["pnr_tool"] == "innovus"):
-    view_fpath = write_innovus_view_file(flow_settings,syn_output_path)
-    init_script_fname = write_innovus_init_script(flow_settings,view_fpath,syn_output_path)
-    innovus_script_fname, pnr_output_path = write_innovus_script(flow_settings,metal_layer,core_utilization,init_script_fname,cts_flag=False)
-    run_innovus_cmd = "innovus -no_gui -init " + innovus_script_fname + " | tee inn.log"
-    copy_logs_cmd_str = " ".join(["cp", "inn.log", init_script_fname, view_fpath, os.path.join(work_dir,innovus_script_fname), report_dest_str])
-    run_cmd(run_innovus_cmd)
 
-  # read total area from the report file:
-  file = open(os.path.expanduser(flow_settings['pr_folder']) + "/pr_report.txt" ,"r")
-  for line in file:
-    if line.startswith('Total area of Core:'):
-      total_area = re.findall(r'\d+\.{0,1}\d*', line)
-  file.close()
-  copy_pnr_outputs(flow_settings,copy_logs_cmd_str,report_dest_str)
-  return pnr_report_str, pnr_output_path, total_area
+  if flow_settings['remote_pnr'] == True:
+    work_dir = os.getcwd()
+    pnr_report_str = synth_report_str + "_" + "metal_layers_" + metal_layer + "_" + "util_" + core_utilization
+    report_dest_str = os.path.join(flow_settings['pr_folder'],pnr_report_str + "_reports")
+    if(flow_settings["pnr_tool"] == 'encounter'):
+      write_remote_enc_script(flow_settings, metal_layer, core_utilization)
+      #grab credentials from json
+      sshconfig = None
+      coffepath = os.getcwd()
+      coffepath = os.path.join(coffepath.split('COFFE_NJF')[0], 'COFFE_NJF')
+      with open(os.path.join(coffepath, 'ssh_config.json'), "r") as configfile:
+        sshconfig = json.load(configfile)
+      #create the necessary folders
+      dir_to_create = ['mkdir ./pnr']
+      dir_to_create.append('mkdir ./pnr/inputs')
+      dir_to_create.append('mkdir ./pnr/pr')
+      RemoteUtils.run_cmds(cmds=dir_to_create, username=sshconfig['username'], remote_host=sshconfig['server'], passwordFile=sshconfig['passwordfile'], remotedir=sshconfig['remotedir'])
+      #copy input files to inputs folder
+      filesToUpload = []
+      filesToUpload.append(os.path.join(syn_output_path, 'synthesized_flat.v'))
+      filesToUpload.append(os.path.join(syn_output_path, 'synthesized.sdc'))
+      RemoteUtils.copyFilesToServer(files=filesToUpload, remotedir=flow_settings['remote_pnr_inputs'], username=sshconfig['username'], remote_host=sshconfig['server'], passwordFile=sshconfig['passwordfile'])
+      #copy configuration and script files
+      filesToUpload = []
+      filesToUpload.append('edi.conf')
+      filesToUpload.append('edi.tcl')
+      RemoteUtils.copyFilesToServer(files=filesToUpload, remotedir=flow_settings['remote_pnr_folder'], username=sshconfig['username'], remote_host=sshconfig['server'], passwordFile=sshconfig['passwordfile'])
+      #run the script
+      encounter_cmd = "encounter -nowin -init edi.tcl | tee edi.log"
+      RemoteUtils.run_cmd(encounter_cmd, sshconfig['username'], remote_host=sshconfig['server'], passwordFile=sshconfig['passwordfile'], remotedir=flow_settings['remote_pnr_folder'])
+      #copy the outputs to the report directory
+      # report_dest_str = os.path.join(flow_settings['pr_folder'],pnr_report_str + "_reports")
+      RemoteUtils.copyDirFromServer(flow_settings['remote_pnr_pr'], localdir=flow_settings['pr_folder'], username=sshconfig['username'], remote_host=sshconfig['server'], passwordFile=sshconfig['passwordfile'])
+    elif(flow_settings['pnr_tool'] == 'innovus'):
+      #generate the necessary files
+      view_fpath = write_remote_innovus_view_file(flow_settings, flow_settings['remote_pnr_inputs']) #only need to change the syn output path to read sdc file
+      view_remote = os.path.join(flow_settings['remote_pnr_folder'], view_fpath.split('/')[-1])
+      init_script_fname = write_remote_innovus_init_script(flow_settings, view_remote, flow_settings['remote_pnr_inputs'])
+      init_script_remote = os.path.join(flow_settings['remote_pnr_folder'], init_script_fname.split('/')[-1])
+      innovus_script_fname, pnr_output_path = write_remote_innovus_script(flow_settings, metal_layer, core_utilization, init_script_remote, cts_flag=False)
+      innovus_script_remote = os.path.join(flow_settings['remote_pnr_folder'], innovus_script_fname.split('/')[-1])
+      print('Innovus Script Files:\n' + str(innovus_script_fname) + '\n' + str(view_fpath) + '\n' + str(init_script_fname))
+      #grab ssh config info 
+      sshconfig = {}
+      coffepath = os.getcwd()
+      coffepath = os.path.join(coffepath.split('COFFE_NJF')[0], 'COFFE_NJF')
+      with open(os.path.join(coffepath, 'ssh_config.json'), "r") as configfile:
+        sshconfig = json.load(configfile)
+      #create the necessary folders
+      dir_to_create = ['mkdir ./pnr']
+      dir_to_create.append('mkdir ./pnr/inputs')
+      dir_to_create.append('mkdir ./pnr/pr')
+      dir_to_create.append('mkdir ./pnr/logs')
+      RemoteUtils.run_cmds(cmds=dir_to_create, username=sshconfig['username'], remote_host=sshconfig['server'], passwordFile=sshconfig['passwordfile'], remotedir=sshconfig['remotedir'])
+      #copy the innovus files to server
+      filesToUpload=[]
+      filesToUpload.append(view_fpath)
+      filesToUpload.append(init_script_fname)
+      filesToUpload.append(innovus_script_fname)
+      RemoteUtils.copyFilesToServer(files=filesToUpload, remotedir=flow_settings['remote_pnr_folder'], username=sshconfig['username'], remote_host=sshconfig['server'], passwordFile=sshconfig['passwordfile'])
+      #copy the input files to server
+      filesToUpload=[]
+      filesToUpload.append(os.path.join(syn_output_path, 'synthesized_flat.v'))
+      filesToUpload.append(os.path.join(syn_output_path, 'synthesized_hier.v'))
+      filesToUpload.append(os.path.join(syn_output_path, 'synthesized.sdc'))
+      RemoteUtils.copyFilesToServer(files=filesToUpload, remotedir=flow_settings['remote_pnr_inputs'], username=sshconfig['username'], remote_host=sshconfig['server'], passwordFile=sshconfig['passwordfile'])
+      #run innovus
+      flow_settings['remote_pnr_logs'] = os.path.join(flow_settings['remote_pnr_folder'], 'logs')
+      run_innovus_cmd = 'innovus -no_gui -init ' + innovus_script_remote + ' -log ' + os.path.join(flow_settings['remote_pnr_logs'], 'innovus.log') + ' | tee inn.log'
+      RemoteUtils.run_cmd(cmd_str=run_innovus_cmd, username=sshconfig['username'], remote_host=sshconfig['server'], passwordFile=sshconfig['passwordfile'], remotedir='')
+      #copy all neccessary logs and report files
+  else:
+    work_dir = os.getcwd()
+    pnr_report_str = synth_report_str + "_" + "metal_layers_" + metal_layer + "_" + "util_" + core_utilization
+    report_dest_str = os.path.join(flow_settings['pr_folder'],pnr_report_str + "_reports")
+    if(flow_settings["pnr_tool"] == "encounter"):
+      write_enc_script(flow_settings,metal_layer,core_utilization)
+      copy_logs_cmd_str = "cp " + "edi.log " + "edi.tcl " + "edi.conf " + "encounter.log " + "encounter.cmd " + report_dest_str
+      encounter_cmd = "encounter -nowin -init edi.tcl | tee edi.log"
+      run_cmd(encounter_cmd)
+    elif(flow_settings["pnr_tool"] == "innovus"):
+      view_fpath = write_innovus_view_file(flow_settings,syn_output_path)
+      init_script_fname = write_innovus_init_script(flow_settings,view_fpath,syn_output_path)
+      innovus_script_fname, pnr_output_path = write_innovus_script(flow_settings,metal_layer,core_utilization,init_script_fname,cts_flag=False)
+      run_innovus_cmd = "innovus -no_gui -init " + innovus_script_fname + " | tee inn.log"
+      copy_logs_cmd_str = " ".join(["cp", "inn.log", init_script_fname, view_fpath, os.path.join(work_dir,innovus_script_fname), report_dest_str])
+      run_cmd(run_innovus_cmd)
+
+    # read total area from the report file:
+    file = open(os.path.expanduser(flow_settings['pr_folder']) + "/pr_report.txt" ,"r")
+    for line in file:
+      if line.startswith('Total area of Core:'):
+        total_area = re.findall(r'\d+\.{0,1}\d*', line)
+    file.close()
+    copy_pnr_outputs(flow_settings,copy_logs_cmd_str,report_dest_str)
+    return pnr_report_str, pnr_output_path, total_area
+  
+  return 'error', 'error', 0
 ########################################## PNR RUN FUNCS ############################################
 ######################################## PLACE AND ROUTE ############################################
 
@@ -2235,6 +2888,7 @@ def hardblock_flow(flow_settings):
   for clock_period in flow_settings['clock_period']:
     for wire_selection in flow_settings['wire_selection']:
       synth_report_str,syn_output_path = run_synth(processed_flow_settings,clock_period,wire_selection)
+      # print('synth report path:' + str(synth_report_str))
       for metal_layer in flow_settings['metal_layers']:
         for core_utilization in flow_settings['core_utilization']:
           #set the pnr flow to accept the correct name for flattened netlist

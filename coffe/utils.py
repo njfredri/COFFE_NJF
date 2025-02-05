@@ -560,7 +560,15 @@ def load_params(filename,run_options):
         'condensed_results_folder': "",
         'coffe_repo_path': "~/COFFE",
         'hb_run_params': {},
-        'ptn_params': {}
+        'ptn_params': {},
+        #remote params
+        'remote_design_folder': "~",
+        'remote_synth_folder': "~",
+        'remote_synth': False, #enable synthesis on a remote machine
+        # 'remote_synopsys_env': '~', Dont want to set this value
+        'remote_design_folder': '~',
+        'dev_skip_remote_synth': False,
+        'remote_pnr': False
     }
     arch_params = {
         'W': -1,
@@ -929,6 +937,25 @@ def load_params(filename,run_options):
                     hb_param['pwr_pin'] = value.strip()
                 elif param == "process_size":
                     hb_param["process_size"] = str(value)
+                #remote flow parameters
+                elif param == 'remote_design_folder':
+                    hb_param['remote_design_folder'] = str(value)
+                # elif param == 'remote_synth_folder': 
+                #     hb_param['remote_synth_folder'] = str(value)
+                elif param == 'remote_synth': #enable synthesis on a remote machine
+                    hb_param['remote_synth'] = bool(value)
+                elif param == 'remote_synopsys_env': #enable synthesis on a remote machine
+                    hb_param['remote_synopsys_env'] = str(value)
+                elif param == 'remote_design_folder':
+                    hb_param['remote_design_folder'] = str(value)
+                elif param == 'dev_skip_remote_synth':
+                    hb_param['dev_skip_remote_synth'] = bool(value)
+                elif param == 'remote_pnr':
+                    hb_param['remote_pnr'] = bool(value)
+                # elif param == 'remote_pnr_folder':
+                #     hb_param['remote_pnr_folder'] = str(value)
+                elif param == 'remote_innovus_home':
+                    hb_param['remote_innovus_home'] = str(value)
                 
             input_param_options = {
                 "period" : "float",
