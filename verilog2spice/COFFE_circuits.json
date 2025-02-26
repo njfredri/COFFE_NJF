@@ -1,0 +1,24 @@
+{
+    "subcircuits" : [
+        {
+            "name" : "nand2_decode",
+            "type" : "nand",
+            "ports" : ["n_in1", "n_in2", "n_out", "n_vdd", "n_gnd"]
+        },
+        {
+            "name" : "nand3_decode",
+            "type" : "nand",
+            "ports" : ["n_in1", "n_in2", "n_in3", "n_out", "n_vdd", "n_gnd"]
+        },
+        {
+            "name" : "nor2_decode",
+            "type" : "nor",
+            "ports" : ["n_in1", "n_in2", "n_out", "n_vdd", "n_gnd"]
+        },
+        {
+            "name" : "inv",
+            "type" : "inv",
+            "ports" : ["n_in", "n_out", "n_vdd", "n_gnd"]
+        }
+    ]
+}

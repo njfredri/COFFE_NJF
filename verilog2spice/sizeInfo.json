@@ -1,0 +1,28 @@
+{
+    "nand2_dummy" : {
+        "var" : ["Wn", "Wp"],
+        "Wn" : "45n",
+        "Wp" : "55n"
+    },
+    "nor2_dummy" : {
+        "var" : ["Wn", "Wp"],
+        "Wn" : "45n",
+        "Wp" : "55n"
+    },
+    "nand2_decode" : {
+        "var" : ["Wn", "Wp"],
+        "Wn" : "45n",
+        "Wp" : "55n"
+    },
+    "nor2_decode" : {
+        "var" : ["Wn", "Wp"],
+        "Wn" : "45n",
+        "Wp" : "55n"
+    },
+    "inv" : {
+        "var" : ["Wn", "Wp", "AD"],
+        "Wp" : ";nmos;*2",
+        "Wn" : ";pmos;+3",
+        "AD" : ";pmos;+;nmos;+12"
+    }
+}
