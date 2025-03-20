@@ -1,6 +1,6 @@
 import os
 import json
-
+import argparse
 #max length of time (in nano seconds)
 MAXTime = 100000
 
@@ -37,7 +37,7 @@ def generatePWL(signalValues:list, timescale:str, logical_high, setup_time) -> s
     pwl += (')')
     return pwl
 
-def generateDUTInstance(tbinfo:dict, numSubcircuitInstances) -> str:
+def generateDUTInstance(tbinfo:dict, numSubcircuitInstances, vdd='VDD', vss='VSS') -> str:
     spice = open(tbinfo['circuit_input'])
     lines = spice.readlines()
     subcircuit_inst = ''
@@ -45,8 +45,15 @@ def generateDUTInstance(tbinfo:dict, numSubcircuitInstances) -> str:
         if '.subckt' in line.lower():
             if tbinfo['dut_name'] in line:
                 ports = line.split()[2:]
+                #loop through the ports and replace the VDD and VSS
+                ports2 = []
+                for port in ports:
+                    if 'vdd' in port.lower(): ports2.append('VDD')
+                    elif 'vss' in port.lower(): ports2.append('VSS')
+                    elif 'gnd' in port.lower(): ports2.append('VSS')
+                    else: ports2.append(port)
                 name = 'X' + str(numSubcircuitInstances)
-                subcircuit_inst = name + ' ' + ' '.join(ports) + ' ' + tbinfo['dut_name']
+                subcircuit_inst = name + ' ' + ' '.join(ports2) + ' ' + tbinfo['dut_name']
                 break
     return subcircuit_inst
 
@@ -55,8 +62,10 @@ def generateDUTPortsList(tbinfo: dict) -> list:
     lines = spice.readlines()
     subcircuit_inst = ''
     for line in lines:
-        if '.subckt' in line.lower():
-            if tbinfo['dut_name'] in line:
+        # print('\n---------',line.lower())
+        # print(('subckt' in line.lower()))
+        if 'subckt' in line.lower():
+            if tbinfo['dut_name'].lower() in line.lower():
                 ports = line.split()[2:]
                 finalports = []
                 for port in ports:
@@ -100,14 +109,14 @@ def generateHspiceTestbench(input, tbout):
 
     timescale = str(tbinfo['timescale'])
     setuptime = tbinfo['transition_values']['setup_time']
-    print(tbLines)
+    # print(tbLines)
 
     count = 1
     for key in tbinfo['input_signals'].keys():
         signals = tbinfo['input_signals'][key]
-        print(key, signals)
+        # print(key, signals)
         pwl = generatePWL(signals, timescale, vdd, setuptime)
-        print(pwl)
+        # print(pwl)
         full_pwl = 'V' + str(count) + ' ' + str(key) + ' 0 '+ pwl
         tbLines.append('* Input stimuli for ' + key + ' using Piecewise Linear Voltage (PWL)')
         tbLines.append(full_pwl)
@@ -125,6 +134,7 @@ def generateHspiceTestbench(input, tbout):
     
     #add probes to all of the ports
     portslist = generateDUTPortsList(tbinfo)
+    print('portslist', portslist)
     probe = '.probe '
     prints= '.print TRAN '
     
@@ -142,4 +152,10 @@ def generateHspiceTestbench(input, tbout):
     tbout.write('\n'.join(tbLines))
 
 if __name__ == '__main__':
-    generateHspiceTestbench('example.json', 'tb.sp')
+    msg = 'enter in stuff'
+    parser = argparse.ArgumentParser(description = msg)
+    parser.add_argument('-i', '--input', required=True, help='input file in json format')
+    parser.add_argument('-o', '--output', required=True, help='output file (spice)')
+    args = parser.parse_args()
+
+    generateHspiceTestbench(args.input, args.output)

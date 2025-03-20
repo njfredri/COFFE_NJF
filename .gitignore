@@ -93,3 +93,6 @@ ssh_config.bash
 ssh_config.json
 
 *password*
+*.cdl
+verilog2spice/*temp*
+verilog2spice/minlib.sp

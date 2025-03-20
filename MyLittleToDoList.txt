@@ -2,3 +2,8 @@
 2. copy all input files to server
 3. call innovus remotely
 4. double-check all file paths in the innovus scripts (will be easier by just following the errors)
+
+
+
+later:
+1. Replace all 'COFFE_NJF' hard-coded strings to a global variable

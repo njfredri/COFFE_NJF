@@ -20,6 +20,7 @@ import sys
 import re
 import json
 from datetime import datetime
+import argparse
 
 class Verilog2Spice:
     def reformat_json(file_path, indent=4):
@@ -43,13 +44,12 @@ class Verilog2Spice:
             invalid = False
             for v in vddvss_names:
                 if v in con.lower():
-                    print('found vdd, vss, gnd, or ground in: ' + str(con))
                     invalid = True
             #if not continued then add the port
             if not invalid: temp.append(con)
         return temp
 
-    def verilogNetlist2Spice(spi_files=[],ver_file='', out_file='', pos_pwr='VDD', neg_pwr='VSS', del_on=True):
+    def verilogNetlist2Spice(spi_files=[],ver_file='', out_file='', pos_pwr='VDD', neg_pwr='n_gnd', del_on=True):
     
         if len(spi_files) == 0 :
             sys.exit("Spice library netlist not specified")
@@ -104,11 +104,9 @@ class Verilog2Spice:
         tempf.close
         #reorder gates from longest name to shortest. reduces likelihood of substring matching (e.g. tests NAND before AND)
         basic_circuits['gates'] = sorted(basic_circuits['gates'], key=len, reverse=True)
-        print(basic_circuits['gates'])
         categorizedCircuits = {'misc': []}
         #go through and categorize all cells. Also get the number of ports.
         for cell in cells:
-            print(cell)
             added = False
             minInfo = {}
             minInfo['name'] = cell[0]
@@ -140,8 +138,8 @@ class Verilog2Spice:
             num_ports = len(Verilog2Spice.get_nonvddvss_ports(sub['ports']))
             typ = sub['type']
             name = sub['name']
-            print(name)
-            print(num_ports)
+            # print(name)
+            # print(num_ports)
             for cell in categorizedCircuits[typ]: #look at matching category for cells with same number of inputs
                 if num_ports == cell['num_ports']:
                     translation[cell['name']] = name
@@ -161,7 +159,7 @@ class Verilog2Spice:
         outfl.write('*\n*  ' + out_file + ' : SPICE netlist translated from the VERILOG netlist : ' + ver_file + '\n')
         outfl.write('*'+ ' '* (len(out_file) + 5 ) + 'on the ' + str(datetime.now())+ '\n*\n')
         outfl.write('*' * (len(out_file) + len(ver_file) + 60) + '\n\n')
-        outfl.write('.INCLUDE ' + spi_inc + '\n\n')
+        # outfl.write('.INCLUDE ' + spi_inc + '\n\n')
 
         for line1 in verfl:
             words = line1.rstrip('\r\n').strip().split()
@@ -188,7 +186,7 @@ class Verilog2Spice:
                 subckt_on = False
                 if del_on :  # change the busses delimiter
                     subckt = subckt.replace('[','_bus').replace(']','_')
-                outfl.write('.GLOBAL ' + pos_pwr + ' ' + neg_pwr + '\n\n' + subckt + '\n\n')
+                outfl.write('*.GLOBAL ' + pos_pwr + ' ' + neg_pwr + '\n\n' + subckt + '\n\n')
 
             if (not subckt_on) and (not inst_on) and re.search(r'\(\s*\.',line1) and words[0].upper().find('MODULE') != 0 and line1.strip()[0:2].find('//') != 0 :
                 words = line1.rstrip('\r\n').strip().split()
@@ -221,7 +219,7 @@ class Verilog2Spice:
                     nb_subckt += 1
                 else :
                     inst_name = instance
-                    print(inst_name)
+                    # print(inst_name)
                     for pin in range(1,len(cells[i])) : # search for the pins of the SPICE subckt
                         if cells[i][pin] == pos_pwr :
                             instance = instance + ' ' + pos_pwr
@@ -237,7 +235,6 @@ class Verilog2Spice:
                                 nb_pins += 1
                             else :
                                 instance = instance + ' ' + nodes[j]
-                    # print (instance + ' ' + subckt)
                     outfl.write(instance + ' ' + subckt + '\n')
 
         outfl.write('\n' + '.ENDS ' + subckt_name )
@@ -254,14 +251,13 @@ class Verilog2Spice:
 
         return
     
-    def translateSpice2Coffe(sp, spout, translation, pos_pwr, neg_pwr):
+    def translateSpice2Coffe(sp, spout, translation, libfiles, pos_pwr, neg_pwr):
         net = open(sp)
         netlines = net.readlines()
         temp = open(translation)
         translation = json.load(temp)
         temp.close()
 
-        print(translation)
         inSub = False #says if you are in a subcircuit definition
         newnet = []
         for line in netlines:
@@ -279,7 +275,6 @@ class Verilog2Spice:
             else:
                 #
                 words = line.split()
-                print(words)
                 if len(words) == 0:
                     continue
                 if words[-1] in translation.keys() is not None:
@@ -292,7 +287,6 @@ class Verilog2Spice:
                         newwords.append(neg_pwr)
                     newwords.append(newsub) 
                     newline = ' '.join(newwords)
-                    print(newline)
             newnet.append(newline)
         
         #loop through and generate a python method
@@ -301,6 +295,8 @@ class Verilog2Spice:
         # for line in newnet:
             
         outf = open(spout, 'w+')
+        for file in libfiles:
+            outf.write('.lib "' + file +'" *enter library here* .endl\n')
         outf.write('\n'.join(newnet))
         outf.close()
                     
@@ -319,7 +315,8 @@ class Verilog2Spice:
         inSubckt = False
         for line in netlines:
             if '*' in line.lower():
-                print(line)
+                continue
+            elif len(line.strip())==0:
                 continue
             else:
                 if '.subckt' in line.lower():
@@ -337,7 +334,6 @@ class Verilog2Spice:
                     extra = '\tspice_file.write("'
                     if type in sizing.keys():
                         info = sizing[type]
-                        print(type)
                         for var in info['var']:
                             if info[var] != None: #fill in the variable with the provided values
                                 extra += str(var) + '=' + str(info[var]) + ' '
@@ -374,11 +370,268 @@ class Verilog2Spice:
         outf = open(pyout,"w+")
         outf.write("\n".join(codeLines))
 
+    def removeSpacesNearEquals(string: str):
+        while '= ' in string:
+            string = string.replace('= ', '=')
+        while ' =' in string:
+            string = string.replace(' =', '=')
+        return string
+
+
+    def isItVdd(name:str) -> bool:
+        if 'vdd' in name.lower():
+            return True
+        return False
+
+    def isItGnd(name:str) -> bool:
+        if 'gnd' in name.lower():
+            return True
+        if 'ground' in name.lower():
+            return True
+        return False
+
+    def isItVss(name:str) -> bool:
+        if 'vss' in name.lower():
+            return True
+        return False
+
+    def correct_vdd_vss(cktdef: dict, newvdd='n_vdd', newvss='n_gnd', vddvss_is_global=False):
+        cktdef['newdef'] = []
+
+        cktdef['added_vdd'] = False
+        cktdef['added_vss'] = False
+        cktdef['removed_vdd'] = False
+        cktdef['removed_vss'] = False
+
+        #detect if vdd and vss exist in ports
+        vddexist = False
+        vdds = []
+        vssexist = False
+        vsss = []
+        finports = [] #collection of final ports. Will not include vdd and vss.
+        #get ports
+        ports=[]
+        for word in cktdef['def'][0].split()[2:]:
+            if Verilog2Spice.isItVdd(word):
+                if word not in vdds:
+                    vddexist = True
+                    vdds.append(word)
+            elif Verilog2Spice.isItVdd(word):
+                if word not in vsss:
+                    vssexist = True
+                    vsss.append(word)
+            elif Verilog2Spice.isItGnd(word):
+                if word not in vsss:
+                    vssexist = True
+                    vsss.append(word)
+        #if there is no vdd, add it in to the end
+        if not vddvss_is_global: #if not global, add in missing vdd and vss
+            if not vddexist:
+                cktdef['def'][0] += ' ' + newvdd
+                cktdef['added_vdd'] = True
+            if not vssexist:
+                cktdef['def'][0] += ' ' + newvss
+                cktdef['added_vss'] = True
+        else: #if global, remove the ports
+            for vdd in vdds:
+                if cktdef['def'][0] != cktdef['def'][0].replace(vdd, ''):
+                    cktdef['removed_vdd'] = True
+                cktdef['def'][0] = cktdef['def'][0].replace(vdd, '')
+            for vss in vsss:
+                if cktdef['def'][0] != cktdef['def'][0].replace(vdd, ''):
+                    cktdef['removed_vss'] = True
+                cktdef['def'][0] = cktdef['def'][0].replace(vss, '')
+
+        #now go through the components and replace any vdd or vss with new ones
+        newdef = [cktdef['def'][0]]
+        for line in cktdef['def'][1:]:
+            for word in line.split():
+                if Verilog2Spice.isItVdd(word):
+                    if word not in vdds:
+                        vdds.append(word)
+                elif Verilog2Spice.isItVdd(word):
+                    if word not in vsss:
+                        vsss.append(word)
+                elif Verilog2Spice.isItGnd(word):
+                    if word not in vsss:
+                        vsss.append(word)
+        for line in cktdef['def'][1:]:
+            newline = str(line)
+            for vdd in vdds:
+                newline = newline.replace(vdd, newvdd)
+            for vss in vsss:
+                newline = newline.replace(vss, newvss)
+            newdef.append(newline)
+        
+    def getModelLib(file):
+        lines = open(file).readlines()
+        for line in lines:
+            if '.lib' in line.lower():
+                words = line.split()
+                return words[1]
+        return None
+
+    def generateAdditionalCells(sp, spi_files, modelfile, coffe_circuits, outfile, pmosname, nmosname, pos_pwr='n_vdd', neg_pwr='n_gnd', newpmos='pmos', newnmos='nmos', libraryname='ADDITIONAL_LIB'):
+        
+        #grab all the names of coffe_circuits
+        coffeinfo= json.load(open(coffe_circuits))
+        coffe_circuits = []
+        for circuit in coffeinfo['subcircuits']:
+            coffe_circuits.append(circuit['name'])
+        # print('coffe_circuits', coffe_circuits)
+
+        #loop through and make a list of noncoffe cells
+        noncoffecells = {}
+        spf = open(sp)
+        splines = spf.readlines()
+        for line in splines:
+            if line.strip()[0] == '*': continue
+            if line.strip()[0] == '.': continue
+            #should only read lines with components
+            words = line.split()
+            componenttype = words[-1]
+            if componenttype.lower() not in coffe_circuits:
+                noncoffecells[componenttype.lower()] = {}
+        # print('noncoffecells', noncoffecells)
+        #go through the spice cell files and grab the definitions for the appropriate cells
+        for file in spi_files:
+            lines = open(file).readlines
+            insubckt = False
+            currentcircuit = ''
+            circuitdef = []
+            for line in lines():
+                lline = line.lower()
+                if '.subckt' in lline:
+                    circuitname = lline.split()[1]
+                    if circuitname in noncoffecells.keys():
+                        insubckt=True
+                        currentcircuit = circuitname
+                        circuitdef = [lline]
+                #if just a regular line
+                elif '.ends' in lline and insubckt:
+                    insubckt=False
+                    circuitdef.append(lline)
+                    noncoffecells[currentcircuit]['def'] = circuitdef
+                    circuitdef = []
+                    currentcircuit = ''
+                    
+                elif insubckt:
+                    if lline != '\n': circuitdef.append(line.lower())
+
+        #go through and correct the vdd/vss
+        # (cktdef: dict, newvdd='n_vdd', newvss='n_gnd', gnd_is_Vss=True, vddvss_is_global=False)
+        for key in noncoffecells.keys():
+            circuitinfo = noncoffecells[key]
+            Verilog2Spice.correct_vdd_vss(circuitinfo, newvdd=pos_pwr, newvss=neg_pwr)
+
+        #go through and replace all the nmos and pmos
+        for key in noncoffecells.keys():
+            newdef = []
+            circuit = noncoffecells[key]
+            for line in circuit['def']:
+                translated = line.lower().replace(' '+pmosname.lower(), ' '+newpmos)
+                translated = translated.replace(' '+nmosname.lower(), ' ' +newnmos)
+                translated = translated.replace('\n','')
+                newdef.append(translated)
+            circuit['def'] = newdef
+
+            #loop through the lines and get rid of existing parameters
+            newdef = []
+            for line in circuit['def']:
+                line2 = Verilog2Spice.removeSpacesNearEquals(line)
+                words = line2.split()
+                newline = ''
+                for word in words:
+                    if '=' not in word:
+                        newline += word + ' '
+                newdef.append(newline)
+            circuit['def'] = newdef
+
+            #append wp and wn into the def
+            circuit['def'][0] = circuit['def'][0]+' Wn=*wn* Wp=*wp*'
+            #loop through and add the appropriate variables for nmos and pmos
+            for line in circuit['def'][1:]:
+                if newnmos in line:
+                    gate='L=gate_length'
+                    'W=Wn'
+                    'AS=Wn*trans_diffusion_length'
+                    'AD=Wn*trans_diffusion_length' 
+                    'PS=Wn+2*trans_diffusion_length'
+                    'PD=Wn+2*trans_diffusion_length'
+        #go through and write out all the circuits
+        modellibname = Verilog2Spice.getModelLib(modelfile)
+        if modellibname == None:
+            modellibname = '*library_name_here*'
+        outf = open(outfile, 'w+')
+        outf.write('.lib "'+modelfile+'" ' +modellibname+ ' .endl\n')
+        outf.write('\n.LIB '+ libraryname +'\n\n')
+        for key in noncoffecells.keys():
+            circdef = '\n'.join(noncoffecells[key]['def'])
+            outf.write(circdef + '\n')
+        outf.write('\n.ENDL ' + libraryname + '\n')
+        return noncoffecells
+    
+    def fixPowerPortsSpice(sp, cktinfo, pos_pwr, neg_pwr):
+        splines = open(sp).readlines()
+        newlines = []
+        for line in splines:
+            cell = line.lower().split()[-1]
+            if line[0] == '.': 
+                newlines.append(line)
+                continue
+            elif line[0] == '*': 
+                newlines.append(line)
+                continue
+            elif cell in cktinfo.keys():
+                newcellline = str(line)
+                if cktinfo[cell]['added_vdd']:
+                    prepend = ' '.join(newcellline.split()[:-1])
+                    end = newcellline.split()[-1]
+                    newcellline = prepend+' '+pos_pwr+' '+end
+                    # print('after adding vdd:', newcellline)
+                    # newlines.append(prepend+' '+pos_pwr+' '+end)
+                if cktinfo[cell]['added_vss']:
+                    prepend = ' '.join(newcellline.split()[:-1])
+                    end = newcellline.split()[-1]
+                    # newlines.append(prepend+' '+neg_pwr+' '+end)
+                    newcellline = prepend+' '+neg_pwr+' '+end
+                    # print('after adding vss:', newcellline)
+                newlines.append(newcellline)
+            else:
+                newlines.append(line)
+        spout = open(sp, 'w+')
+        spout.write('\n'.join(newlines))
+
+    # def replaceVariables(sp, sizingInfo, vars:dict):
+    #     newlines = []
+    #     lines = open(sp).readlines()
+    #     for line in lines():
+    #         for key in vars.keys():
+    #             if 
+            
+
 
 if __name__ == '__main__':
-    Verilog2Spice.verilogNetlist2Spice(spi_files=['saed90nm.cdl'], ver_file='adder_4bit_synth.v', out_file='temp.sp', pos_pwr='n_vdd', neg_pwr='n_gnd', del_on=True)
-    Verilog2Spice.translateSpice2Coffe(sp='temp.sp', spout='final.sp', translation='temp_translation.json', pos_pwr='n_vdd', neg_pwr='n_gnd')
-    Verilog2Spice.translateCoffeSpice2Python(sp='final.sp', pyout='final.py', sizingInfo='sizeInfo.json')
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-i', '--input', required=True, help='verilog netlist file to convert to spice')
+    parser.add_argument('-l', '--cdl', required=True, help='CDL library used to convert cell definitions')
+    parser.add_argument('-p', '--pmosname', help="Name for current PMOS devices. Will be replaced with COFFE pmos")
+    parser.add_argument('-n', '--nmosname', help="Name for current NMOS devices. Will be replaced with COFFE nmos")
+    parser.add_argument('-m', '--modelfile', required=True, help="File containing new pmos and nmos spice models")
+    parser.add_argument('-o', '--output', help="Name of output file")
+    args = parser.parse_args()
+    outfile = 'output.sp'
+    if args.output != None: outfile = args.output
+    pmosname = 'P12'
+    if args.pmosname != None: pmosname = args.pmosname
+    nmosname = 'N12'
+    if args.nmosname != None: nmosname = args.nmosname
+
+    Verilog2Spice.verilogNetlist2Spice(spi_files=[args.cdl], ver_file=args.input, out_file='temp.sp', pos_pwr='n_vdd', neg_pwr='n_gnd', del_on=True)
+    Verilog2Spice.translateSpice2Coffe(sp='temp.sp', spout=outfile, translation='temp_translation.json', libfiles=['basic_subcircuits.l','minlib.sp'], pos_pwr='n_vdd', neg_pwr='n_gnd')
+    addinfo = Verilog2Spice.generateAdditionalCells(sp=outfile, spi_files=['saed90nm.cdl'], modelfile=args.modelfile, coffe_circuits='COFFE_circuits.json', outfile='minlib.sp', pmosname=pmosname, nmosname=nmosname, newpmos='pmos', newnmos='nmos')
+    Verilog2Spice.fixPowerPortsSpice(sp=outfile, cktinfo=addinfo, pos_pwr='n_vdd', neg_pwr='n_gnd')
+    Verilog2Spice.translateCoffeSpice2Python(sp=outfile, pyout='output.py', sizingInfo='sizeInfo.json')
     #Todo. Use the spice file to make a python method.
     #While doing this, generate Wn and Wp for inv, nor and nand
     #To do wn and wp, could have one variable for each type of gate in a circuit. Another way is to have one variable for each gate. Lastly, could use fixed values.
