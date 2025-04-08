@@ -9,6 +9,7 @@
         "xor",
         "inv",
         "aoinv",
-        "lnand"
+        "lnand",
+        "dff"
     ]
 }

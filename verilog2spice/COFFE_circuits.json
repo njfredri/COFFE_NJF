@@ -19,6 +19,11 @@
             "name" : "inv",
             "type" : "inv",
             "ports" : ["n_in", "n_out", "n_vdd", "n_gnd"]
+        },
+        {
+            "name" : "dff",
+            "type" : "dff",
+            "ports" : ["clk", "d", "q", "qn", "vdd", "vss"]
         }
     ]
 }
