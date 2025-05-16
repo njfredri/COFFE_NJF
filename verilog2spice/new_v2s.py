@@ -295,6 +295,7 @@ class Verilog2Spice:
         # for line in newnet:
             
         outf = open(spout, 'w+')
+        outf.write('.lib "../spice_models/ptm_22nm_bulk_hp.l" 22NM_BULK_HP .endl\n')
         for file in libfiles:
             outf.write('.lib "' + file +'" *enter library here* .endl\n')
         outf.write('\n'.join(newnet))
