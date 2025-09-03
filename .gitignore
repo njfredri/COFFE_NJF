@@ -96,3 +96,7 @@ ssh_config.json
 *.cdl
 verilog2spice/*temp*
 verilog2spice/minlib.sp
+verilog2spice/*.l
+verilog2spice/*.json
+verilog2spice/*.crash
+verilog2spice/*output*
