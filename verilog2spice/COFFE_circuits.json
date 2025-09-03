@@ -25,5 +25,6 @@
             "type" : "dff",
             "ports" : ["clk", "d", "q", "qn", "vdd", "vss"]
         }
+
     ]
 }

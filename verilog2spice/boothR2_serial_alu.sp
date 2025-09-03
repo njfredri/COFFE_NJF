@@ -1,14 +1,14 @@
 .lib "../spice_models/ptm_22nm_bulk_hp.l" 22NM_BULK_HP .endl
 
-.lib "basic_subcircuits.l" *enter library here* .endl
+.lib "basic_subcircuits.l" BASIC_SUBCIRCUITS .endl
 
-.lib "minlib.sp" *enter library here* .endl
-
+.lib "minlib.sp" ADDITIONAL_LIB .endl
+aaaaa
 *
 
 *  temp.sp : SPICE netlist translated from the VERILOG netlist : boothR2_serial_alu_synth.v
 
-*            on the 2025-05-23 14:43:34.746205
+*            on the 2025-06-03 13:00:46.182999
 
 *
 
@@ -16,7 +16,7 @@
 
 *.GLOBAL n_vdd n_gnd
 
-.SUBCKT boothR2_serial_alu op_bus0_ op_bus1_ clk x y ce reset out n_vdd n_gnd
+.SUBCKT boothR2_serial_alu_testing_dup_error op_bus0_ op_bus1_ clk x y ce reset out n_vdd n_gnd
 
 Xcb_reg_reg clk n35 n71 n36 n_vdd n_gnd dff
 

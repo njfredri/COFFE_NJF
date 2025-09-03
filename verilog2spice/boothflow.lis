@@ -1,0 +1,82 @@
+ ****** PrimeSim HSPICE -- U-2023.03-SP2-2 linux64 (Oct 30 2023 8514223) ******
+  Copyright (c) 1986 - 2025 by Synopsys, Inc. All Rights Reserved.
+  This software and the associated documentation are proprietary
+  to Synopsys, Inc. This software may only be used in accordance
+  with the terms and conditions of a written license agreement with
+  Synopsys, Inc. All other use, reproduction, or distribution of
+  this software is strictly prohibited.
+  Input File: /home/lab444/tools/COFFE_NJF/verilog2spice/boothflow.sp           
+  Command line options: /mscad/apps/Linux/synopsys_new/hspice/U-2023.03-SP2-2/hspice/linux64/hspice -i /home/lab444/tools/COFFE_NJF/verilog2spice/boothflow.sp -o /home/lab444/tools/COFFE_NJF/verilog2spice
+  Start time: Thu Jun  5 15:43:23 2025
+ lic:  
+ lic: FLEXlm: SDK_12.11.9.2 
+ lic: USER:   lab444               HOSTNAME: lab444 
+ lic: HOSTID: 7246b856             PID:      112074 
+ lic: Using FLEXlm license file: 
+ lic: 27003@elegflex3.ddns.uark.edu 
+ lic: Checkout 1 hspice 
+ lic: License/Maintenance for hspice will expire on 14-apr-2027/2024.09 
+ lic: 1(in_use)/50(total) FLOATING license(s) on SERVER 27003@elegflex3.ddns.uark.edu 
+ lic:   
+
+ **error**  circuit 0 has no nodes
+
+
+          ***** job aborted
+1****** PrimeSim HSPICE -- U-2023.03-SP2-2 linux64 (Oct 30 2023 8514223) ******
+ ******  
+ .lib '../spice_models/ptm_22nm_bulk_hp.l' 22nm_bulk_hp .endl
+
+ ****** job statistics summary tnom=  25.000 temp=  25.000 ******
+  
+ ******  Machine Information  ******
+ CPU:
+ model name	: AMD Ryzen 7 2700X Eight-Core Processor
+ cpu MHz	: 2200.000
+ CPU(s)		: 16
+  
+ OS:
+ Linux version 6.8.0-60-generic (buildd@lcy02-amd64-098) (x86_64-linux-gnu-gcc-12 (Ubuntu 12.3.0-1ubuntu1~22.04) 12.3.0, GNU ld (GNU Binutils for Ubuntu) 2.38) #63~22.04.1-Ubuntu SMP PREEMPT_DYNAMIC Tue Apr 22 19:00:15 UTC 2
+
+ System loadavg : 0.17 0.32 0.34 3/1687 112077
+
+
+  ******  PrimeSim HSPICE Threads Information  ******
+
+  Command Line Threads Count :     1
+  Available CPU Count        :    16
+  Actual Threads Count       :     1
+
+
+  ******  Circuit Statistics  ******
+  # nodes       =       1 # elements   =       0
+  # resistors   =       0 # capacitors =       0 # inductors   =       0
+  # mutual_inds =       0 # vccs       =       0 # vcvs        =       0
+  # cccs        =       0 # ccvs       =       0 # volt_srcs   =       0
+  # curr_srcs   =       0 # diodes     =       0 # bjts        =       0
+  # jfets       =       0 # mosfets    =       0 # U elements  =       0
+  # T elements  =       0 # W elements =       0 # B elements  =       0
+  # S elements  =       0 # P elements =       0 # va device   =       0
+  # vector_srcs =       0 # N elements =       0
+
+
+  ******  Runtime Statistics (seconds)  ******
+
+  analysis           time    # points   tot. iter  conv.iter
+  op point           0.00           1           0
+  readin             0.11
+  errchk             0.00
+  setup              0.00
+  output             0.00
+
+
+           peak memory used        440.71 megabytes
+           total cpu time            0.32 seconds
+           total elapsed time        1.10 seconds
+           job started at     15:43:23 06/05/2025
+           job ended   at     15:43:24 06/05/2025
+           job total runtime         1.10 seconds
+
+
+ lic: Release hspice token(s) 
+ lic: total license checkout elapse time:        0.77(s)

@@ -1,18 +1,18 @@
 .lib "../spice_models/ptm_22nm_bulk_hp.l" 22NM_BULK_HP .endl
 
-.lib "basic_subcircuits.l" *enter library here* .endl
+.lib "basic_subcircuits.l" BASIC_SUBCIRCUITS .endl
 
-.lib "minlib.sp" *enter library here* .endl
-
-*
-
-*  temp.sp : SPICE netlist translated from the VERILOG netlist : boothR2_serial_alu_synth.v
-
-*            on the 2025-05-23 14:43:34.746205
+.lib "minlib.sp" ADDITIONAL_LIB .endl
 
 *
 
-*********************************************************************************************
+*  temp.sp : SPICE netlist translated from the VERILOG netlist : alu_serial_unit_subset_synth.v
+
+*            on the 2025-06-16 13:28:49.502816
+
+*
+
+*************************************************************************************************
 
 *.GLOBAL n_vdd n_gnd
 
@@ -92,4 +92,54 @@ XU71 op_bus0_ n51 n_vdd n_gnd inv
 
 XU72 ce n65 n_vdd n_gnd inv
 
-.ENDS boothR2_serial_alu
+.ENDS
+
+.SUBCKT alu_serial_unit opConfig_bus0_ opConfig_bus1_ opConfig_bus2_ clk x y ce_alu opLoad reset out n_vdd n_gnd
+
+X\op_reg_reg[1] clk n22 op_reg_bus1_ n43 n_vdd n_gnd dff
+
+X\op_reg_reg[0] clk n21 op_reg_bus0_ n42 n_vdd n_gnd dff
+
+XU25 reset n23 n22 n_vdd n_gnd nor2_decode
+
+XU26 n24 n25 n23 n_vdd n_gnd nand2_decode
+
+XU27 n26 n43 n25 n_vdd n_gnd nand2_decode
+
+XU28 opLoad n27 n24 n_vdd n_gnd nand2_decode
+
+XU29 n28 n29 n27 n_vdd n_gnd nand2_decode
+
+XU30 n30 n31 n29 n_vdd n_gnd nand2_decode
+
+XU31 opConfig_bus1_ n30 n_vdd n_gnd inv
+
+XU32 opConfig_bus2_ n32 n28 n_vdd n_gnd nand2_decode
+
+XU33 y n33 n32 n_vdd n_gnd nand2_decode
+
+XU34 reset n34 n21 n_vdd n_gnd nor2_decode
+
+XU35 n35 n36 n34 n_vdd n_gnd nand2_decode
+
+XU36 n26 n42 n36 n_vdd n_gnd nand2_decode
+
+XU37 opLoad n26 n_vdd n_gnd inv
+
+XU38 n37 opLoad n35 n_vdd n_gnd nand2_decode
+
+XU39 n38 n39 n37 n_vdd n_gnd nand2_decode
+
+XU40 n40 n31 n39 n_vdd n_gnd nand2_decode
+
+XU41 opConfig_bus2_ n31 n_vdd n_gnd inv
+
+XU42 opConfig_bus0_ n40 n_vdd n_gnd inv
+
+XU43 n41 opConfig_bus2_ n38 n_vdd n_gnd nand2_decode
+
+XU44 y n33 n41 n_vdd n_gnd nor2_decode
+
+XU45 x n33 n_vdd n_gnd inv
+
+.ENDS alu_serial_unit
