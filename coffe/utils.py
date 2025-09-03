@@ -790,6 +790,8 @@ def load_params(filename,run_options):
             param_dict["fpga_arch_params"]['gen_routing_metal_pitch'] = float(value)
         elif param == 'gen_routing_metal_layers':
             param_dict["fpga_arch_params"]['gen_routing_metal_layers'] = int(value)
+        elif param == 'enable_cim':
+            param_dict["fpga_arch_params"]['enable_cim'] = bool(value)
     
     # Check architecture parameters to make sure that they are valid
     check_arch_params(param_dict["fpga_arch_params"], filename)
@@ -1012,7 +1014,6 @@ def check_hard_params(hard_params,run_options):
             sys.exit(1)
 
 
-
 def load_run_params(filename):
 
     run_flow_stages = ["synth","pnr","sta"]
@@ -1121,7 +1122,6 @@ def parse_ptn_param_line(line):
         updated_parsed_line.append(new_subline)
     return updated_parsed_line
 
-
 def check_arch_params (arch_params, filename):
     """
     This function checks the architecture parameters to make sure that all the parameters specified 
@@ -1210,8 +1210,6 @@ def check_arch_params (arch_params, filename):
     #    print_error_not_compatable("finfet", "flut")      
     # if arch_params['coffe_repo_path'].split("/")[-1] != "COFFE" or os.path.isdir(arch_params['coffe_repo_path']):
     #     print_error (arch_params['coffe_repo_path'],"coffe_repo_path",filename)
-
-
 
 def print_error(value, argument, filename, msg = ""):
     print("ERROR: Invalid value (" + value + ") for " + argument + " in " + filename + " " + msg)

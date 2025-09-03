@@ -153,7 +153,7 @@ class SpiceInterface(object):
         # Run the SPICE simulation and capture output
         output_filename = sp_filename.rstrip(".sp") + ".lis"
         output_file = open(output_filename, "w")
-
+        print("output filename:", output_filename)
         hspice_success = False
         hspice_runs = 0
 

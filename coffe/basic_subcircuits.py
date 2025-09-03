@@ -520,3 +520,58 @@ def RAM_tgate_generate_lp(filename, use_finfet):
 		spice_file.write(".ENDS\n\n\n")
 
 	spice_file.close()
+
+
+# new circuits for Picaso Tile - Nathaniel Fredricks
+def AND_generate(filename, use_finfet):
+	if use_finfet:
+		print("error: coffe_njf not ready for finfet use")
+		exit()
+	spice_file = open(filename, 'a')  
+	filestring = '''
+******************************************************************************************
+** AND Gate
+******************************************************************************************
+.subckt AND a b gnd out vdd Wn=45n Wp=45n
+m5 net17 a net26 gnd nmos L=gate_length W=Wn AS=Wn*trans_diffusion_length AD=Wn*trans_diffusion_length PS=Wn+2*trans_diffusion_length PD=Wn+2*trans_diffusion_length
+m4 net26 b gnd gnd nmos L=gate_length W=Wn AS=Wn*trans_diffusion_length AD=Wn*trans_diffusion_length PS=Wn+2*trans_diffusion_length PD=Wn+2*trans_diffusion_length
+m0 out net17 gnd gnd nmos L=gate_length W=Wn AS=Wn*trans_diffusion_length AD=Wn*trans_diffusion_length PS=Wn+2*trans_diffusion_length PD=Wn+2*trans_diffusion_length
+m3 net17 a vdd vdd pmos L=gate_length W=Wp AS=Wp*trans_diffusion_length AD=Wp*trans_diffusion_length PS=Wp+2*trans_diffusion_length PD=Wp+2*trans_diffusion_length
+m2 net17 b vdd vdd pmos L=gate_length W=Wp AS=Wp*trans_diffusion_length AD=Wp*trans_diffusion_length PS=Wp+2*trans_diffusion_length PD=Wp+2*trans_diffusion_length
+m1 out net17 vdd vdd pmos L=gate_length W=Wp AS=Wp*trans_diffusion_length AD=Wp*trans_diffusion_length PS=Wp+2*trans_diffusion_length PD=Wp+2*trans_diffusion_length
+.ends AND
+	
+
+
+'''
+	spice_file.write(filestring)
+	spice_file.close()
+	return
+
+def XOR_generate(filename, use_finfet):
+	if use_finfet:
+		print("error: coffe_njf not ready for finfet use")
+		exit()
+	spice_file = open(filename, 'a')
+	filestring = '''
+******************************************************************************************
+** XOR Gate
+******************************************************************************************
+.subckt XOR a b gnd out vdd Wn=45n Wp=45n
+m7 out a net13 gnd nmos L=gate_length W=Wn AS=Wn*trans_diffusion_length AD=Wn*trans_diffusion_length PS=Wn+2*trans_diffusion_length PD=Wn+2*trans_diffusion_length
+m6 out net017 net8 gnd nmos L=gate_length W=Wn AS=Wn*trans_diffusion_length AD=Wn*trans_diffusion_length PS=Wn+2*trans_diffusion_length PD=Wn+2*trans_diffusion_length
+m5 net8 net021 gnd gnd nmos L=gate_length W=Wn AS=Wn*trans_diffusion_length AD=Wn*trans_diffusion_length PS=Wn+2*trans_diffusion_length PD=Wn+2*trans_diffusion_length
+m0 net13 b gnd gnd nmos L=gate_length W=Wn AS=Wn*trans_diffusion_length AD=Wn*trans_diffusion_length PS=Wn+2*trans_diffusion_length PD=Wn+2*trans_diffusion_length
+m4 net17 a vdd vdd pmos L=gate_length W=Wp AS=Wp*trans_diffusion_length AD=Wp*trans_diffusion_length PS=Wp+2*trans_diffusion_length PD=Wp+2*trans_diffusion_length
+m3 out net021 net17 vdd pmos L=gate_length W=Wp AS=Wp*trans_diffusion_length AD=Wp*trans_diffusion_length PS=Wp+2*trans_diffusion_length PD=Wp+2*trans_diffusion_length
+m2 out b net28 vdd pmos L=gate_length W=Wp AS=Wp*trans_diffusion_length AD=Wp*trans_diffusion_length PS=Wp+2*trans_diffusion_length PD=Wp+2*trans_diffusion_length
+m1 net28 net017 vdd vdd pmos L=gate_length W=Wp AS=Wp*trans_diffusion_length AD=Wp*trans_diffusion_length PS=Wp+2*trans_diffusion_length PD=Wp+2*trans_diffusion_length
+xi24 b net021 vdd gnd inv
+.ends XOR
+
+
+
+'''
+	spice_file.write(filestring)
+	spice_file.close()
+	return

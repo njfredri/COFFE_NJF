@@ -7325,6 +7325,12 @@ class FPGA:
         basic_subcircuits.RAM_tgate_generate(self.basic_subcircuits_filename, self.specs.use_finfet)
         basic_subcircuits.RAM_tgate_generate_lp(self.basic_subcircuits_filename, self.specs.use_finfet)
 
+        #Nathaniel Fredricks
+        #generate AND gate
+        basic_subcircuits.AND_generate(self.basic_subcircuits_filename, self.specs.use_finfet)
+        #generate XOR gate
+        basic_subcircuits.XOR_generate(self.basic_subcircuits_filename, self.specs.use_finfet)
+
         # Write footer
         basic_sc_file = open(self.basic_subcircuits_filename, 'a')
         basic_sc_file.write(".ENDL BASIC_SUBCIRCUITS")
@@ -7561,3 +7567,17 @@ class FPGA:
   
         return
 
+
+#Nathaniel Fredricks
+class _HalfAdder(_SizableCircuit):
+    def __init__(self, use_finfet, carry_chain_type, N, FAs_per_flut):
+        # Carry chain name
+        self.name = "half_adder"
+        self.use_finfet = use_finfet
+        # ripple or skip?
+        self.carry_chain_type = carry_chain_type
+        # added to the check_arch_params function
+        # assert FAs_per_flut <= 2      
+        self.FAs_per_flut = FAs_per_flut
+        # how many Fluts do we have in a cluster?
+        self.N = N
