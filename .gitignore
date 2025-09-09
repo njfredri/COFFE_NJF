@@ -100,3 +100,5 @@ verilog2spice/*.l
 verilog2spice/*.json
 verilog2spice/*.crash
 verilog2spice/*output*
+verilog2spice/spice_files/
+verilog2spice/verilog_files/
