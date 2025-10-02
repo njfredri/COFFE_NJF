@@ -102,3 +102,5 @@ verilog2spice/*.crash
 verilog2spice/*output*
 verilog2spice/spice_files/
 verilog2spice/verilog_files/
+*.sp
+*.v
