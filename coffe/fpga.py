@@ -53,6 +53,7 @@ from . import memory_subcircuits
 from . import utils
 from . import hardblock_functions
 from . import tran_sizing
+from . import picaso_subcircuits
 
 # Top level file generation module
 from . import top_level
@@ -157,6 +158,11 @@ class _Specs:
         self.gen_routing_metal_pitch  = arch_params_dict['gen_routing_metal_pitch']
         self.gen_routing_metal_layers = arch_params_dict['gen_routing_metal_layers']
 
+        #Nathaniel Fredricks 
+        # #CIM parameters. Using similar setup as Yuzong Chen. 
+        # TODO: Add extra arguements here for more fine-grained control 
+        self.enable_cim                  = arch_params_dict['enable_cim']
+        
         #Quick code to correct model path if it repeats coffe again or uses ~
         #Sometimes it would do something linke /home/user/COFFE/~/COFFE/etc
         #This would lead to an error with hspice
@@ -4589,6 +4595,9 @@ class _RAM(_CompoundCircuit):
             self.power_sram_writelh = _powersramwritelh(2**self.row_decoder_bits, 2**self.col_decoder_bits)
             self.power_sram_writehh = _powersramwritehh(2**self.row_decoder_bits, 2**self.col_decoder_bits)
             self.power_sram_writep = _powersramwritep(2**self.row_decoder_bits, 2**self.col_decoder_bits)
+            #Added by Nathaniel Fredricks
+            if self.cspecs.enable_cim == True:
+                print("measuring memory core power for CIM")
 
         elif self.memory_technology == "MTJ":
             self.power_mtj_write = _powermtjwrite(2**self.row_decoder_bits)
@@ -4601,7 +4610,7 @@ class _RAM(_CompoundCircuit):
             self.samp_part2 = _samp_part2(self.use_tgate, 2**self.row_decoder_bits, 0.3)
             self.samp = _samp(self.use_tgate, 2**self.row_decoder_bits, 0, 0.3)
             self.writedriver = _writedriver(self.use_tgate, 2**self.row_decoder_bits)
-
+            
         elif self.memory_technology == "MTJ":
             self.mtjbasics = _mtjbasiccircuits()
             self.bldischarging = _mtjbldischarging(2**self.row_decoder_bits)
@@ -4718,6 +4727,9 @@ class _RAM(_CompoundCircuit):
             init_tran_sizes.update(self.precharge.generate(subcircuits_filename, min_tran_width))
             self.samp.generate(subcircuits_filename, min_tran_width)
             init_tran_sizes.update(self.writedriver.generate(subcircuits_filename, min_tran_width))
+            #Added by Nathaniel Fredricks
+            if self.cspecs.enable_cim == True:
+                print("generating CIM inital transistor sizes")
         else:
             init_tran_sizes.update(self.bldischarging.generate(subcircuits_filename, min_tran_width))
             init_tran_sizes.update(self.mtjbasics.generate(subcircuits_filename))
@@ -4830,6 +4842,9 @@ class _RAM(_CompoundCircuit):
             self.power_sram_writelh.generate_top()
             self.power_sram_writehh.generate_top()
             self.power_sram_writep.generate_top()
+            #Added by Nathaniel Fredricks
+            if self.cspecs.enable_cim == True:
+                print("Generating CIM Tops")
         else:
             self.bldischarging.generate_top()
             self.blcharging.generate_top()
@@ -4870,6 +4885,9 @@ class _RAM(_CompoundCircuit):
             self.precharge.update_area(area_dict, width_dict)
             self.samp.update_area(area_dict, width_dict)
             self.writedriver.update_area(area_dict, width_dict)
+            #Added by Nathaniel Fredricks
+            if self.cspecs.enable_cim == True:
+                print("Updating CIM area")
         else:
             self.mtjbasics.update_area(area_dict, width_dict)
 
@@ -5396,6 +5414,10 @@ class FPGA:
         self.number_of_banks = self.specs.number_of_banks
 
         
+        ######################## Create CIM Object- Nathaniel Fredricks
+
+        self.halfAdder = _HalfAdder(self.specs.use_finfet)
+
         ################################
         ### CREATE HARD BLOCK OBJECT ###
         ################################
@@ -5594,8 +5616,14 @@ class FPGA:
         if self.specs.enable_bram_block == 1:
             self.RAM.generate_top()
 
+        ######################## Create CIM Object- Nathaniel Fredricks
+
+        self.half_adder.generate_top()
+
         for hardblock in self.hardblocklist:
             hardblock.generate_top(size_hb_interfaces)
+
+
 
         # Calculate area, and wire data.
         print("Calculating area...")
@@ -5856,7 +5884,12 @@ class FPGA:
             self.area_dict["ram"] = RAM_area
             self.area_dict["ram_core"] = RAM_area - RAM_SB_area - RAM_CB_area
             self.width_dict["ram"] = math.sqrt(RAM_area) 
-        
+
+            #Added by Nathaniel Fredricks
+            #Update the area of the PEs
+            if self.specs.enable_cim == True:
+                print("Updating area for the CIM Processing Elements")
+
         if self.lb_height != 0.0:  
             self.compute_distance()
 
@@ -6777,6 +6810,9 @@ class FPGA:
             self.delay_dict[self.RAM.writedriver.name] = self.RAM.writedriver.delay
             self.RAM.writedriver.power = float(spice_meas["meas_avg_power"][0])
 
+            #Added by Nathaniel Fredricks
+            if self.specs.enable_cim == True:
+                print("  Updating delays for CIM stuff")
         else:
             print("  Updating delay for " + self.RAM.bldischarging.name)
             spice_meas = spice_interface.run(self.RAM.bldischarging.top_spice_path, parameter_dict) 
@@ -7570,14 +7606,27 @@ class FPGA:
 
 #Nathaniel Fredricks
 class _HalfAdder(_SizableCircuit):
-    def __init__(self, use_finfet, carry_chain_type, N, FAs_per_flut):
+    def __init__(self, use_finfet):
         # Carry chain name
         self.name = "half_adder"
         self.use_finfet = use_finfet
-        # ripple or skip?
-        self.carry_chain_type = carry_chain_type
         # added to the check_arch_params function
         # assert FAs_per_flut <= 2      
-        self.FAs_per_flut = FAs_per_flut
         # how many Fluts do we have in a cluster?
-        self.N = N
+    
+    def generate(self, subcircuit_filename, min_tran_width, use_finfet):
+        """ Generate Half Adder SPICE netlist for picaso"""
+        self.transistor_names, self.wire_names = picaso_subcircuits.generate_alu_half_adder(subcircuit_filename, self.name, use_finfet)
+
+        print(self.transistor_names)
+
+        exit()
+        return self.transistor_names
+    
+    def generate_top(self):
+        self.top_spice_path = top_level.generate
+
+class _CIM(_CompoundCircuit):
+    def __init__(self):
+        self.name = "CIM"
+        
