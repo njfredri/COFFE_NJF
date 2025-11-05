@@ -53,7 +53,7 @@ from . import memory_subcircuits
 from . import utils
 from . import hardblock_functions
 from . import tran_sizing
-from . import picaso_subcircuits
+from . import pim_subcircuits
 
 # Top level file generation module
 from . import top_level
@@ -4597,7 +4597,11 @@ class _RAM(_CompoundCircuit):
             self.power_sram_writep = _powersramwritep(2**self.row_decoder_bits, 2**self.col_decoder_bits)
             #Added by Nathaniel Fredricks
             if self.cspecs.enable_cim == True:
-                print("measuring memory core power for CIM")
+                # print("measuring memory core power for CIM")
+                print("something")
+                    # def __init__(self, num_pes):
+                self.num_pes = 16
+                self.cim = _CIM(self.num_pes)
 
         elif self.memory_technology == "MTJ":
             self.power_mtj_write = _powermtjwrite(2**self.row_decoder_bits)
@@ -4730,6 +4734,7 @@ class _RAM(_CompoundCircuit):
             #Added by Nathaniel Fredricks
             if self.cspecs.enable_cim == True:
                 print("generating CIM inital transistor sizes")
+                init_tran_sizes.update(self.cim.generate(subcircuits_filname, min_tran_width))
         else:
             init_tran_sizes.update(self.bldischarging.generate(subcircuits_filename, min_tran_width))
             init_tran_sizes.update(self.mtjbasics.generate(subcircuits_filename))
@@ -4845,6 +4850,7 @@ class _RAM(_CompoundCircuit):
             #Added by Nathaniel Fredricks
             if self.cspecs.enable_cim == True:
                 print("Generating CIM Tops")
+                self.cim.generate_top()
         else:
             self.bldischarging.generate_top()
             self.blcharging.generate_top()
@@ -4888,6 +4894,7 @@ class _RAM(_CompoundCircuit):
             #Added by Nathaniel Fredricks
             if self.cspecs.enable_cim == True:
                 print("Updating CIM area")
+                self.cim.update_area(area_dict, width_dict)
         else:
             self.mtjbasics.update_area(area_dict, width_dict)
 
@@ -5416,7 +5423,8 @@ class FPGA:
         
         ######################## Create CIM Object- Nathaniel Fredricks
 
-        self.halfAdder = _HalfAdder(self.specs.use_finfet)
+        # self.halfAdder = _HalfAdder(self.specs.use_finfet)
+        
 
         ################################
         ### CREATE HARD BLOCK OBJECT ###
@@ -7605,28 +7613,86 @@ class FPGA:
 
 
 #Nathaniel Fredricks
-class _HalfAdder(_SizableCircuit):
+class _BoothR2Adder(_SizableCircuit):
     def __init__(self, use_finfet):
         # Carry chain name
-        self.name = "half_adder"
+        self.name = "BoothR2Adder"
         self.use_finfet = use_finfet
         # added to the check_arch_params function
         # assert FAs_per_flut <= 2      
         # how many Fluts do we have in a cluster?
-    
     def generate(self, subcircuit_filename, min_tran_width, use_finfet):
-        """ Generate Half Adder SPICE netlist for picaso"""
-        self.transistor_names, self.wire_names = picaso_subcircuits.generate_alu_half_adder(subcircuit_filename, self.name, use_finfet)
-
+        self.transistor_names, self.wire_names = pim_subcircuits.gen_BoothR2Adder(subcircuit_filename, self.name, use_finfet)
+        print("Generated gen_BoothR2Adder")
         print(self.transistor_names)
+        
+        
+        #set the initial transistor sizes
+        # .param nand2_BoothR2Adder_nmos=44n
+        # .param nand2_BoothR2Adder_pmos=44n
 
-        exit()
-        return self.transistor_names
-    
+        # .param nand3_BoothR2Adder_nmos=88n
+        # .param nand3_BoothR2Adder_pmos=132n
+
+        # .param inv_BoothR2Adder_nmos=44n
+        # .param inv_BoothR2Adder_pmos=88n
+
+        # .param nor2_BoothR2Adder_nmos=44n
+        # .param nor2_BoothR2Adder_pmos=176n
+        self.initial_transistor_sizes["nand2_BoothR2Adder_nmos"] = 2 
+        self.initial_transistor_sizes["nand2_BoothR2Adder_pmos"] = 2
+        
+        self.initial_transistor_sizes["nand3_BoothR2Adder_nmos"] = 2
+        self.initial_transistor_sizes["nand3_BoothR2Adder_pmos"] = 2
+        
+        self.initial_transistor_sizes["inv_alu_serial_unit_nmos"] = 1
+        self.initial_transistor_sizes["inv_alu_serial_unit_pmos"] = 2
+        
+        self.initial_transistor_sizes["nor2_alu_serial_unit_nmos"] = 1
+        self.initial_transistor_sizes["nor2_alu_serial_unit_pmos"] = 4
+        
+        return self.initial_transistor_sizes
+        
     def generate_top(self):
-        self.top_spice_path = top_level.generate
+        print("Generating top-level submodule for BoothR2Adder")
+        self.top_spice_path = top_level.generate_boothr2adder_top(self.name)
+        return
+        
+    def update_area(self, area_dict, width_dict):
+        #Area is calculated per each transistor/size combo (_pmos and _nmos). The instance names should not matter
+        nand2_area = area_dict['nand2_BoothR2Adder'] * 12
+        nand3_area = area_dict['nand3_BoothR2Adder'] * 6
+        inv_area = area_dict['inv_BoothR2Adder'] * 7
+        nor2_area = area_dict['nor2_BoothR2Adder'] * 2
+        total_area = nand2_area + nand3_area + inv_area + nor2_area
+        area_dict[self.name] = total_area
+        width_dict[self.name] = math.sqrt(total_area)
+        return
 
 class _CIM(_CompoundCircuit):
-    def __init__(self):
+    def __init__(self, num_pes):
         self.name = "CIM"
+        self.num_pes = num_pes
+        b2adder = _BoothR2Adder(False)
+        return
+
+    def generate_top(self):
+        self.b2adder.generate_top()
+        return
+    
+    def generate(self, subcircuit_filename, min_tran_width):
+        init_tran_sizes = {}
+        init_tran_sizes.update(self.b2adder.generate(subcircuit_filename, min_tran_width, False))
+        return init_tran_sizes
+    
+    def update_area(self, area_dict, width_dict):
+        self.b2adder.update_area(area_dict, width_dict)
+        return
         
+    def update_wires(self, width_dict, wire_lengths, wire_layers):
+        return
+    
+    def print_details(self, report_file):
+        utils.print_and_write(report_file, "-CIM Tile Details:")
+        utils.print_and_write(report_file, "    Number of PEs" + str(self.num_pes))
+    
