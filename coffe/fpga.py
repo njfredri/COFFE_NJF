@@ -42,6 +42,7 @@
 import os
 import sys
 import math
+import json
 
 # Subcircuit Modules
 from . import basic_subcircuits
@@ -4598,8 +4599,6 @@ class _RAM(_CompoundCircuit):
             #Added by Nathaniel Fredricks
             if self.cspecs.enable_cim == True:
                 # print("measuring memory core power for CIM")
-                print("something")
-                    # def __init__(self, num_pes):
                 self.num_pes = 16
                 self.cim = _CIM(self.num_pes)
 
@@ -4734,7 +4733,7 @@ class _RAM(_CompoundCircuit):
             #Added by Nathaniel Fredricks
             if self.cspecs.enable_cim == True:
                 print("generating CIM inital transistor sizes")
-                init_tran_sizes.update(self.cim.generate(subcircuits_filname, min_tran_width))
+                init_tran_sizes.update(self.cim.generate(subcircuits_filename, min_tran_width))
         else:
             init_tran_sizes.update(self.bldischarging.generate(subcircuits_filename, min_tran_width))
             init_tran_sizes.update(self.mtjbasics.generate(subcircuits_filename))
@@ -4820,7 +4819,6 @@ class _RAM(_CompoundCircuit):
         process_data_file.write(".ENDL PROCESS_DATA")
         process_data_file.close()
         
-
     def generate_top(self):
 
         # Generate top-level evaluation paths for all components:
@@ -4928,6 +4926,9 @@ class _RAM(_CompoundCircuit):
         
     def print_details(self, report_file):
         self.RAM_local_mux.print_details(report_file)
+        if self.cspecs.enable_cim == True:
+            # print("measuring memory core power for CIM")
+            self.cim.print_details(report_file)
 
 
 
@@ -5624,10 +5625,6 @@ class FPGA:
         if self.specs.enable_bram_block == 1:
             self.RAM.generate_top()
 
-        ######################## Create CIM Object- Nathaniel Fredricks
-
-        self.half_adder.generate_top()
-
         for hardblock in self.hardblocklist:
             hardblock.generate_top(size_hb_interfaces)
 
@@ -5897,6 +5894,11 @@ class FPGA:
             #Update the area of the PEs
             if self.specs.enable_cim == True:
                 print("Updating area for the CIM Processing Elements")
+                self.area_dict['b2_adders_total'] = self.area_dict[self.RAM.cim.b2adder.name] * self.RAM.cim.num_pes
+                print("Booth Radix 2 Adders total area: " + str(self.area_dict['b2_adders_total']))
+
+                self.area_dict['cim_tile_total'] = self.area_dict['b2_adders_total']
+
 
         if self.lb_height != 0.0:  
             self.compute_distance()
@@ -6821,6 +6823,13 @@ class FPGA:
             #Added by Nathaniel Fredricks
             if self.specs.enable_cim == True:
                 print("  Updating delays for CIM stuff")
+                print(" Updating delay for "+ self.RAM.cim.b2adder.name)
+                spice_meas = spice_interface.run(self.RAM.cim.b2adder.top_spice_path, parameter_dict)
+                self.RAM.cim.b2adder.tfall = tfall
+                self.RAM.cim.b2adder.trise = trise
+                self.RAM.cim.b2adder.delay = max(tfall, trise)
+                self.delay_dict[self.RAM.cim.b2adder.name] = self.RAM.cim.b2adder.delay
+                self.RAM.cim.b2adder.power = float(spice_meas["meas_avg_power"][0])
         else:
             print("  Updating delay for " + self.RAM.bldischarging.name)
             spice_meas = spice_interface.run(self.RAM.bldischarging.top_spice_path, parameter_dict) 
@@ -7540,7 +7549,9 @@ class FPGA:
                 # TODO: tran_size and tran_drive are the same thing?!
                 tran_area_list.append((tran_name, tran_size, tran_drive, tran_area, 
                                                 tran_area_nm, tran_width))    
-                                                                                   
+        fout = open("transistor_area_list.json", 'w+')
+        json.dump({'list': tran_area_list}, fout)
+        fout.close()
         # Assign list to FPGA object
         self.transistor_area_list = tran_area_list
         
@@ -7560,7 +7571,7 @@ class FPGA:
         # tran_drive_strength, tran_area_min_areas, tran_area_nm, tran_width_nm)
         for tran in self.transistor_area_list:
             # those components should have an nmos and a pmos transistors in them
-            if "inv_" in tran[0] or "tgate_" in tran[0]:
+            if "inv_" in tran[0] or "tgate_" in tran[0]: 
                 # Get the component name; transistors full name example: inv_lut_out_buffer_2_nmos.
                 # so the component name after the next two lines will be inv_lut_out_buffe_2.
                 comp_name = tran[0].replace("_nmos", "")
@@ -7597,7 +7608,66 @@ class FPGA:
                 comp_name = comp_name.replace("_pmos", "")               
                 # Add this to comp_area_list directly
                 comp_area_list.append((comp_name, tran[4], tran[5]))            
-        
+            # nathaniel Fredricks: updated this to allow for nand and nor gates
+            # those components that have more than two transistors
+            elif "nand2_" in tran[0] or "nor2_" in tran[0]:
+                #Get the comp name
+                comp_name = tran[0].replace("_nmos", "")
+                comp_name = comp_name.replace("_pmos", "")
+                # If the component is already in the dictionary
+                if comp_name in comp_dict:
+                    if "_nmos" in tran[0]:
+                        # tran[4] is tran_area_nm
+                        comp_dict[comp_name]["nmos"] = tran[4]
+                    else:
+                        comp_dict[comp_name]["pmos"] = tran[4]
+                        
+                    # At this point we should have both NMOS and PMOS sizes in the dictionary
+                    # We can calculate the area of the inverter or tgate by doing the sum
+                    comp_area = 2*(comp_dict[comp_name]["nmos"] + comp_dict[comp_name]["pmos"])
+                    comp_width = math.sqrt(comp_area) #TODO: determine if a more accurate width is available
+                    comp_area_list.append((comp_name, comp_area, comp_width))                 
+                else:
+                    # Create a dict for this component to store nmos and pmos sizes
+                    comp_area_dict = {}
+                    # Add either the nmos or pmos item
+                    if "_nmos" in tran[0]:
+                        comp_area_dict["nmos"] = tran[4]
+                    else:
+                        comp_area_dict["pmos"] = tran[4]
+                        
+                    # Add this gate to the gate dictionary    
+                    comp_dict[comp_name] = comp_area_dict
+            elif "nand3_" in tran[0]:
+                #Get the comp name
+                comp_name = tran[0].replace("_nmos", "")
+                comp_name = comp_name.replace("_pmos", "")
+                # If the component is already in the dictionary
+                if comp_name in comp_dict:
+                    if "_nmos" in tran[0]:
+                        # tran[4] is tran_area_nm
+                        comp_dict[comp_name]["nmos"] = tran[4]
+                    else:
+                        comp_dict[comp_name]["pmos"] = tran[4]
+                        
+                    # At this point we should have both NMOS and PMOS sizes in the dictionary
+                    # We can calculate the area of the inverter or tgate by doing the sum
+                    comp_area = 3*(comp_dict[comp_name]["nmos"] + comp_dict[comp_name]["pmos"])
+                    comp_width = math.sqrt(comp_area) #TODO: determine if a more accurate width is available
+                    comp_area_list.append((comp_name, comp_area, comp_width))                 
+                else:
+                    # Create a dict for this component to store nmos and pmos sizes
+                    comp_area_dict = {}
+                    # Add either the nmos or pmos item
+                    if "_nmos" in tran[0]:
+                        comp_area_dict["nmos"] = tran[4]
+                    else:
+                        comp_area_dict["pmos"] = tran[4]
+                        
+                    # Add this gate to the gate dictionary    
+                    comp_dict[comp_name] = comp_area_dict
+
+
         # Convert comp_area_list to area_dict and width_dict
         area_dict = {}
         width_dict = {}
@@ -7618,11 +7688,13 @@ class _BoothR2Adder(_SizableCircuit):
         # Carry chain name
         self.name = "BoothR2Adder"
         self.use_finfet = use_finfet
+        self.area=0
+        self.width=0
         # added to the check_arch_params function
         # assert FAs_per_flut <= 2      
         # how many Fluts do we have in a cluster?
     def generate(self, subcircuit_filename, min_tran_width, use_finfet):
-        self.transistor_names, self.wire_names = pim_subcircuits.gen_BoothR2Adder(subcircuit_filename, self.name, use_finfet)
+        self.transistor_names, self.wire_names = pim_subcircuits.gen_BoothR2Adder(subcircuit_filename, self.name)
         print("Generated gen_BoothR2Adder")
         print(self.transistor_names)
         
@@ -7645,12 +7717,11 @@ class _BoothR2Adder(_SizableCircuit):
         self.initial_transistor_sizes["nand3_BoothR2Adder_nmos"] = 2
         self.initial_transistor_sizes["nand3_BoothR2Adder_pmos"] = 2
         
-        self.initial_transistor_sizes["inv_alu_serial_unit_nmos"] = 1
-        self.initial_transistor_sizes["inv_alu_serial_unit_pmos"] = 2
+        self.initial_transistor_sizes["inv_BoothR2Adder_nmos"] = 1
+        self.initial_transistor_sizes["inv_BoothR2Adder_pmos"] = 2
         
-        self.initial_transistor_sizes["nor2_alu_serial_unit_nmos"] = 1
-        self.initial_transistor_sizes["nor2_alu_serial_unit_pmos"] = 4
-        
+        self.initial_transistor_sizes["nor2_BoothR2Adder_nmos"] = 1
+        self.initial_transistor_sizes["nor2_BoothR2Adder_pmos"] = 4
         return self.initial_transistor_sizes
         
     def generate_top(self):
@@ -7660,6 +7731,11 @@ class _BoothR2Adder(_SizableCircuit):
         
     def update_area(self, area_dict, width_dict):
         #Area is calculated per each transistor/size combo (_pmos and _nmos). The instance names should not matter
+        fout = open('test_out.json', 'w+')
+        # fout.write(str(area_dict))
+        # fout.close()
+        json.dump(area_dict, fout)
+        fout.close()
         nand2_area = area_dict['nand2_BoothR2Adder'] * 12
         nand3_area = area_dict['nand3_BoothR2Adder'] * 6
         inv_area = area_dict['inv_BoothR2Adder'] * 7
@@ -7667,13 +7743,14 @@ class _BoothR2Adder(_SizableCircuit):
         total_area = nand2_area + nand3_area + inv_area + nor2_area
         area_dict[self.name] = total_area
         width_dict[self.name] = math.sqrt(total_area)
+
         return
 
 class _CIM(_CompoundCircuit):
     def __init__(self, num_pes):
         self.name = "CIM"
         self.num_pes = num_pes
-        b2adder = _BoothR2Adder(False)
+        self.b2adder = _BoothR2Adder(False)
         return
 
     def generate_top(self):
