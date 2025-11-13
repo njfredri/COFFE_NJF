@@ -12,6 +12,7 @@ import time
 from . import spice
 from itertools import product
 import sys
+import parallel_functions
 
 # This flag controls whether or not to print a bunch of ERF messages to the terminal
 ERF_MONITOR_VERBOSE = True
@@ -758,7 +759,8 @@ def erf_inverter_balance_trise_tfall(sp_path,
 		# in this function to populate a new parameter dict for the HSPICE sweep that we
 		# want to do. All parameters will keep the same value as the one in parameter_dict
 		# except for the target transistor that we want to sweep.
-		sweep_parameter_dict = {}
+  
+  		sweep_parameter_dict = {}
 		for i in range(len(nm_size_list)):
 			for name in list(parameter_dict.keys()):
 				# Get the value from the existing dictionary and only change it if it's our
@@ -1382,11 +1384,17 @@ def search_ranges(sizing_ranges, fpga_inst, sizable_circuit, opt_type, re_erf, a
 	print("Calculating cost for each transistor sizing combinations...")
 	print("")
 	cost_list = []
-	for i in range(len(eval_delay_list)):
-		area = area_list[i]
-		delay = eval_delay_list[i]
-		cost = cost_function(area, delay, area_opt_weight, delay_opt_weight)
-		cost_list.append((cost, i))
+
+	#Nathaniel Fredricks: Editted to allow for multiprocessing.
+ 	#The overhead of multiprocessing might outweigh the improvements
+	if parallel_functions.MULTIPROCESSING_ENABLE!=True:
+		for i in range(len(eval_delay_list)):
+			area = area_list[i]
+			delay = eval_delay_list[i]
+			cost = cost_function(area, delay, area_opt_weight, delay_opt_weight)
+			cost_list.append((cost, i))
+	else:
+		cost_list = parallel_functions.calculatecost_parallel(eval_delay_list, area_list, cost_function, area_opt_weight, delay_opt_weight)
 		
 	# Sort based on cost
 	cost_list.sort()
@@ -3306,4 +3314,3 @@ def print_final_transistor_size(fpga_inst, report_file):
 	return 
 
 
-		
