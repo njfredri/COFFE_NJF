@@ -4316,7 +4316,7 @@ class _RAMLocalMUX(_SizableCircuit):
         width_dict[self.name] = width
         area_dict[self.name + "_sram"] = area_with_sram
         width_dict[self.name + "_sram"] = width_with_sram
-
+        # print("Ram local mux area: ", area_dict[self.name])
 
 
     
@@ -4891,7 +4891,7 @@ class _RAM(_CompoundCircuit):
             self.writedriver.update_area(area_dict, width_dict)
             #Added by Nathaniel Fredricks
             if self.cspecs.enable_cim == True:
-                print("Updating CIM area")
+                # print("Updating CIM area")
                 self.cim.update_area(area_dict, width_dict)
         else:
             self.mtjbasics.update_area(area_dict, width_dict)
@@ -5893,9 +5893,9 @@ class FPGA:
             #Added by Nathaniel Fredricks
             #Update the area of the PEs
             if self.specs.enable_cim == True:
-                print("Updating area for the CIM Processing Elements")
+                # print("Updating area for the CIM Processing Elements")
                 self.area_dict['b2_adders_total'] = self.area_dict[self.RAM.cim.b2adder.name] * self.RAM.cim.num_pes
-                print("Booth Radix 2 Adders total area: " + str(self.area_dict['b2_adders_total']))
+                # print("Booth Radix 2 Adders total area: " + str(self.area_dict['b2_adders_total']))
 
                 self.area_dict['cim_tile_total'] = self.area_dict['b2_adders_total']
 
@@ -7714,7 +7714,7 @@ class _BoothR2Adder(_SizableCircuit):
         self.initial_transistor_sizes["nand2_BoothR2Adder_nmos"] = 2 
         self.initial_transistor_sizes["nand2_BoothR2Adder_pmos"] = 2
         
-        self.initial_transistor_sizes["nand3_BoothR2Adder_nmos"] = 2
+        self.initial_transistor_sizes["nand3_BoothR2Adder_nmos"] = 3
         self.initial_transistor_sizes["nand3_BoothR2Adder_pmos"] = 2
         
         self.initial_transistor_sizes["inv_BoothR2Adder_nmos"] = 1

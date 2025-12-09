@@ -12,7 +12,7 @@ import time
 from . import spice
 from itertools import product
 import sys
-
+import json
 # This flag controls whether or not to print a bunch of ERF messages to the terminal
 ERF_MONITOR_VERBOSE = True
 
@@ -239,6 +239,7 @@ def get_eval_area(fpga_inst, opt_type, subcircuit, is_ram_component, is_cc_compo
 	# Get area based on optimization type (subcircuit if local optimization, tile if global)
 	if opt_type == "local":
 		area = fpga_inst.area_dict[subcircuit.name]
+		return area
 	# If the block being sized is part of the memory component, return ram size
 	# Otherwise, the block size is returned
 	elif "hard_block" in subcircuit.name:
@@ -255,6 +256,7 @@ def get_final_area(fpga_inst, opt_type, subcircuit, is_ram_component, is_cc_comp
 	# Get area based on optimization type (subcircuit if local optimization, tile if global)
 	if opt_type == "local":
 		area = fpga_inst.area_dict[subcircuit.name]
+		return area
 	# If the block being sized is part of the memory component, return ram size
 	# Otherwise, the block size is returned
 	elif "hard_block" in subcircuit.name:
@@ -486,9 +488,6 @@ def get_current_delay(fpga_inst, is_ram_component):
 		return ram_delay
 
 def get_final_delay(fpga_inst, opt_type, subcircuit, tfall, trise, is_ram_component, is_cc_component):
-
-
-
 	# Use largest delay for final results
 	if tfall > trise:
 		delay = tfall
@@ -635,6 +634,11 @@ def erf_inverter_balance_trise_tfall(sp_path,
 		
 		# Get the rise and fall measurements for our inverter out of 'spice_meas'
 		# This was a single HSPICE run, so the value we want is at index 0
+		if ("meas_" + inv_name + "_tfall") not in spice_meas:
+			inv_name = inv_name.lower()
+		if ("meas_" + inv_name + "_tfall") not in spice_meas:
+			print("ERROR! Unable to find '", inv_name, "' key in spice_meas")
+			exit(1)
 		tfall_str = spice_meas["meas_" + inv_name + "_tfall"][0]
 		trise_str = spice_meas["meas_" + inv_name + "_trise"][0]
 
@@ -782,6 +786,12 @@ def erf_inverter_balance_trise_tfall(sp_path,
 		
 		# Find the new interval where the tfall trise equality occurs.
 		for i in range(len(nm_size_list)):
+			#Nathaniel Fredricks: Added condition if letter casing is not kept when going from spice to string
+			if ("meas_" + inv_name + "_tfall") not in spice_meas:
+				inv_name = inv_name.lower()
+			if ("meas_" + inv_name + "_tfall") not in spice_meas:
+				print("ERROR! Unable to find '", inv_name, "' key in spice_meas")
+				exit(1)
 			tfall_str = spice_meas["meas_" + inv_name + "_tfall"][i]
 			trise_str = spice_meas["meas_" + inv_name + "_trise"][i]
 			tfall = float(tfall_str)
@@ -863,6 +873,11 @@ def erf_inverter_balance_trise_tfall(sp_path,
 		current_best_tfall_trise_balance = 1
 		best_index = 0
 		for i in range(len(nm_size_list)):
+			if ("meas_" + inv_name + "_tfall") not in spice_meas:
+				inv_name = inv_name.lower()
+			if ("meas_" + inv_name + "_tfall") not in spice_meas:
+				print("ERROR! Unable to find '", inv_name, "' key in spice_meas")
+				exit(1)
 			tfall_str = spice_meas["meas_" + inv_name + "_tfall"][i]
 			trise_str = spice_meas["meas_" + inv_name + "_trise"][i]
 			# For some reason I occasionally see a failure due to "internal timestep being too small" The following shall avoid the program
@@ -889,6 +904,358 @@ def erf_inverter_balance_trise_tfall(sp_path,
 	sys.stdout.flush()
 
 	return target_tran_size
+
+
+def erf_noninverter_balance_trise_tfall(sp_path,
+									 inv_name,
+									 inv_size,
+									 target_tran_name,
+									 parameter_dict,
+									 fpga_inst,
+									 spice_interface):
+	"""
+	This function will balance the rise and fall delays of an inverter by either making the 
+	NMOS bigger or the PMOS bigger.
+
+	sp_path 
+		Path to the top-level spice file for the inverter that we want to size.
+	inv_name
+		Name of the inverter that we want to ERF
+	inv_size
+		Size of the inverter that we want to ERF. The size of an inverter 
+		refers to the size of the smallest between NMOS and PMOS. So if we need to make
+		the PMOS bigger to ERF, than nmos size would be = inv_size and pmos size would
+		end up being something bigger than inv_size by the end of this function!
+		inv_size refers to something different depending on whether we are dealing with 
+		FinFETs or not. In a FinFET FPGA, inv_size refers to the number of fins in the
+		transistor. For bulk, inv_size refers to the diffusion width in units of nanometers.
+	target_tran_name
+		Name of the transistor that needs to have it's size increased (i.e. the NMOS or PMOS
+		of inv_name).
+	fpga_inst
+		An FPGA object.
+	spice_interface
+		A spice interface object.
+
+	Returns: target_tran_size, which is the size for target_tran_name that gives ERF
+	"""
+
+	# This function will balance the rise and fall times of an inverter by either making 
+	# the NMOS bigger or the PMOS bigger. If ever I speak in terms of the PMOS or NMOS only
+	# when I explain things in the comments, just know that the same logic applies to the 
+	# other transistor type as well. Just substitute PMOS<->NMOS and tfall<->trise.
+		
+	# Update the parameter dict needed by the spice_interface. 
+	# The parameter dict contains the sizes of all transistors and RC of all wires.
+	if not fpga_inst.specs.use_finfet:
+		# For bulk, we are dealing with nanometers
+		parameter_dict[inv_name + "_nmos"] = [1e-9*inv_size]
+		parameter_dict[inv_name + "_pmos"] = [1e-9*inv_size]
+	else :
+		# For FinFETs, we are dealing with number of fins
+		parameter_dict[inv_name + "_nmos"] = [inv_size]
+		parameter_dict[inv_name + "_pmos"] = [inv_size]
+
+	# The first thing we are going to do is increase the PMOS size in fixed increments
+	# to get an upper bound on the PMOS size. We also monitor trise. We expect that 
+	# increasing the PMOS size will decrease trise and increase tfall (because we are making
+	# the pull up stronger). If at any time, we see that increasing the PMOS is increasing 
+	# trise, we should stop increasing the PMOS size. We might be self-loading the inverter.
+	if ERF_MONITOR_VERBOSE:
+		print("Looking for " + target_tran_name + " size upper bound")
+	upper_bound_not_found = True
+	self_loading = False
+	bulk_multiplication_factor = 1
+	finfet_num_fins = inv_size
+	valid_delays = True
+
+	previous_tfall = 1
+	previous_trise = 1
+	while upper_bound_not_found and not self_loading:
+		# Increase the target transistor size, update parameter dict and run HSPICE
+		# The target transistor size is in nm for bulk and number of fins for FinFETs
+		if not fpga_inst.specs.use_finfet :
+			target_tran_size = bulk_multiplication_factor*inv_size
+			parameter_dict[target_tran_name][0] = 1e-9*target_tran_size
+			spice_meas = spice_interface.run(sp_path, parameter_dict)
+		else :
+			target_tran_size = finfet_num_fins
+			parameter_dict[target_tran_name][0] = target_tran_size
+			spice_meas = spice_interface.run(sp_path, parameter_dict)
+		
+		# Get the rise and fall measurements for our inverter out of 'spice_meas'
+		# This was a single HSPICE run, so the value we want is at index 0
+		if ("meas_" + inv_name + "_tfall") not in spice_meas:
+			inv_name = inv_name.lower()
+		if ("meas_" + inv_name + "_tfall") not in spice_meas:
+			print("ERROR! Unable to find '", inv_name, "' key in spice_meas")
+			exit(1)
+		tfall_str = spice_meas["meas_" + inv_name + "_tfall"][0]
+		trise_str = spice_meas["meas_" + inv_name + "_trise"][0]
+
+		# Check if the HSPICE measurement failed. If it did, this might mean that the level
+		# restorers are too strong which messes up one of the transitions. Making the gate
+		# length for the level restorers larger could solve this problem.
+		# Note that it's also possible that something else is causing the failure...
+		if tfall_str == "failed" or trise_str == "failed":
+			print("ERROR: HSPICE measurement failed.")
+			print("Consider increasing level-restorers gate length by increasing the 'rest_length_factor' parameter in the input file.")
+			exit(1)
+
+		tfall = float(tfall_str)
+		trise = float(trise_str)
+
+		# Sometimes we increase the transistor to a point where the delay
+		# would be negative. I.e. the transition at the output is faster than the transition
+		# at the input. This can cause COFFE to measure a 'negative' delay.
+		# In this case, we stop ERF attempt.
+		if tfall < 0 or trise < 0 :
+			print("Negative delay detected during ERF. Output transition may be faster than input transition. Stopping upper bound search.")
+			upper_bound_not_found = False
+			valid_delays = False
+
+
+		if ERF_MONITOR_VERBOSE:
+			if "_pmos" in target_tran_name:
+				sizing_bounds_str = ("NMOS=" + str(inv_size) + 
+									 "  PMOS=" + str(target_tran_size))
+			else:
+				sizing_bounds_str = ("NMOS=" + str(target_tran_size) + 
+									 "  PMOS=" + str(inv_size))
+			print((sizing_bounds_str + ": tfall=" + tfall_str + " trise=" + trise_str + 
+				   " diff=" + str(tfall-trise)))
+
+		# We accept negative delays on the first inverter in a driver.
+		if "_1_" not in target_tran_name and "_0_" not in target_tran_name and "_2_" not in target_tran_name:
+			if tfall < 0 or trise < 0 :
+				print("ERROR: Unexpected negative delay.")
+				if not fpga_inst.specs.use_finfet:
+					exit(1)
+				else:
+					# Hack to fix finfets becoming to strong (weird things were happening to the waveforms)
+					if finfet_num_fins != inv_size:
+						finfet_num_fins -= 1
+						
+
+		# Figure out if we have found the upper bound by looking at tfall and trise. 
+		# For a PMOS, upper bound is found if tfall > trise
+		# For an NMOS, upper bound is found if tfall < trise 
+		# We use the transistor name to figure out if our target tran is an NMOS or PMOS
+		if "_pmos" in target_tran_name:
+			if tfall > trise:
+				upper_bound_not_found = False
+				if ERF_MONITOR_VERBOSE:
+					print("Upper bound found, PMOS=" + str(target_tran_size))
+			else:
+				# Check if trise is increasing or decreasing by comparing to previous trise
+				if trise >= previous_trise or target_tran_size/inv_size > 10:
+					self_loading = True
+					if ERF_MONITOR_VERBOSE:
+						print("Increasing PMOS is no longer decreasing trise")
+						print(("or the ratio is too large, using PMOS=" + 
+							   str(target_tran_size)))
+						print("")
+				previous_trise = trise    
+		else:
+			if trise > tfall:
+				upper_bound_not_found = False
+				if ERF_MONITOR_VERBOSE:
+					print("Upper bound found, NMOS=" + str(target_tran_size))
+			else:
+				# Check if tfall is increasing or decreasing by comparing to previous tfall
+				if tfall >= previous_tfall or target_tran_size/inv_size > 10:
+					self_loading = True
+					if ERF_MONITOR_VERBOSE:
+						print("Increasing NMOS is no longer decreasing tfall ")
+						print(("or the ratio is too large, using NMOS=" + 
+							   str(target_tran_size)))
+				previous_tfall = tfall   
+
+		# For bulk, this will increment the target transistor size by another 'inv_size'
+		bulk_multiplication_factor += 1
+		# For FinFETs, this will increment the target transistor size by one fin
+		finfet_num_fins += 1
+
+	# At this point, we have found an upper bound for our target transistor. If the 
+	# inverter is self-loaded, we are just going to use whatever transistor size we 
+	# currently have as the target transistor size. But if the inverter is not self-loaded,
+	# we are going to find the precise transistor size that gives balanced rise/fall.
+	# This step is only done for bulk transistors because FinFETs have "fin granularity".
+	# That is, once we find the upper bound, there isn't much more we can do to balance
+	# the rise and fall for FinFETs (we are limited by number of fins). With bulk on the 
+	# other hand, we have "nanometer granularity" so we can refine the ERF more.
+	if valid_delays and not self_loading and not fpga_inst.specs.use_finfet:      
+
+		# The trise/tfall equality occurs in [target_tran_size-inv_size, target_tran_size]
+		# To find it, we'll sweep this range in two steps. In the first step, we'll sweep
+		# it in increments of min_tran_width. This will allow us to narrow down the range
+		# where equality occurs. In the second step, we'll sweep the new smaller range with
+		# a 1 nm granularity. This two step approach is meant to reduce runtime, but I have
+		# no data proving that it actually does reduce runtime.
+		nm_size_lower_bound = target_tran_size - inv_size
+		nm_size_upper_bound = target_tran_size
+		interval = fpga_inst.specs.min_tran_width
+
+		# Create a list of transistor sizes we want to try
+		nm_size_list = []
+		current_nm_size = nm_size_lower_bound
+		while current_nm_size <= nm_size_upper_bound:
+			nm_size_list.append(current_nm_size)
+			current_nm_size += interval
+		 
+		# Normally when we change transistor sizes, we should recalculate areas
+		# and wire RC to account for the change. In this case, however, we are going
+		# to make the simplifying assumption that the changes we are making will not
+		# have a significant impact on area and on wire lengths. Thus, we save CPU time
+		# and just use the same wire RC for this part of the algorithm. 
+		#
+		# So what we are going to do here is use the parameter_dict that we defined earlier
+		# in this function to populate a new parameter dict for the HSPICE sweep that we
+		# want to do. All parameters will keep the same value as the one in parameter_dict
+		# except for the target transistor that we want to sweep.
+		sweep_parameter_dict = {}
+		for i in range(len(nm_size_list)):
+			for name in list(parameter_dict.keys()):
+				# Get the value from the existing dictionary and only change it if it's our
+				# target transistor.
+				value = parameter_dict[name][0]
+				if name == target_tran_name:
+					value = 1e-9*nm_size_list[i]
+
+				# On the first iteration, we have to add the lists themselves, but every 
+				# other iteration we can just append to the lists.
+				if i == 0:
+					sweep_parameter_dict[name] = [value]
+				else:
+					sweep_parameter_dict[name].append(value)
+
+		# Run HSPICE sweep
+		if ERF_MONITOR_VERBOSE:
+			print("Running HSPICE sweep on: " + sp_path + "")
+
+		spice_meas = spice_interface.run(sp_path, sweep_parameter_dict)
+		
+		# Find the new interval where the tfall trise equality occurs.
+		for i in range(len(nm_size_list)):
+			#Nathaniel Fredricks: Added condition if letter casing is not kept when going from spice to string
+			if ("meas_" + inv_name + "_tfall") not in spice_meas:
+				inv_name = inv_name.lower()
+			if ("meas_" + inv_name + "_tfall") not in spice_meas:
+				print("ERROR! Unable to find '", inv_name, "' key in spice_meas")
+				exit(1)
+			tfall_str = spice_meas["meas_" + inv_name + "_tfall"][i]
+			trise_str = spice_meas["meas_" + inv_name + "_trise"][i]
+			tfall = float(tfall_str)
+			trise = float(trise_str)
+		 
+			# We are making the PMOS bigger, that means that initially, tfall was smaller
+			# than trise. At some point, making the PMOS larger will make trise smaller 
+			# than tfall. That's what we use to identify our ERF transistor size interval. 
+			if "_pmos" in target_tran_name:
+				if tfall > trise:
+					nm_size_upper_bound = nm_size_list[i]
+					nm_size_lower_bound = nm_size_list[i-1]
+					break
+			# We are making the NMOS bigger, that means that initially, trise was smaller 
+			# than tfall. At some point, making the NMOS larger will make tfall smaller
+			# than trise. That's what we use to identify our ERF transistor size interval.
+			else:
+				if trise > tfall:
+					nm_size_upper_bound = nm_size_list[i]
+					nm_size_lower_bound = nm_size_list[i-1]
+					break
+			   
+		# checks to see if indicies are swapped
+		# this was a work around when there was bug and was not too clear as to what was happening 
+		# it should no longer be necessary, but there's not harm in checking anyways
+		# if the lower bound is larger than the upper bound, the lower bound becomes the upper bound
+		# and vice versa. The net effect is that in the 1nm sweep, we'll just sweep more sizes.
+		if nm_size_lower_bound > nm_size_upper_bound:
+			print("***WARNING: ERF boundaries were swapped.***")
+			temp_size = nm_size_upper_bound
+			nm_size_upper_bound = nm_size_lower_bound
+			nm_size_lower_bound = temp_size
+
+		if ERF_MONITOR_VERBOSE:
+			if "_pmos" in target_tran_name:
+				print(("ERF PMOS size in range: [" + 
+					   str(int(nm_size_lower_bound)) + ", " + 
+					   str(int(nm_size_upper_bound)) + "]"))
+			else:
+				print(("ERF NMOS size in range: [" + 
+					   str(int(nm_size_lower_bound)) + ", " + 
+					   str(int(nm_size_upper_bound)) + "]"))
+		
+		# We know that ERF is in between nm_size_lower_bound and nm_size_upper_bound
+		# Now we'll sweep this interval with a 1 nm step.
+		interval = 1
+		# Create a list of transistor sizes we want to try
+		nm_size_list = []
+		current_nm_size = nm_size_lower_bound
+		while current_nm_size <= nm_size_upper_bound:
+			nm_size_list.append(current_nm_size)
+			current_nm_size += interval
+		
+		# Make a new sweep parameter dict
+		sweep_parameter_dict = {}
+		for i in range(len(nm_size_list)):
+			for name in list(parameter_dict.keys()):
+				# Get the value from the existing dictionary and only change it if it's our
+				# target transistor.
+				value = parameter_dict[name][0]
+				if name == target_tran_name:
+					value = 1e-9*nm_size_list[i]
+
+				# On the first iteration, we have to add the lists themselves, but every 
+				# other iteration we can just append to the lists.
+				if i == 0:
+					sweep_parameter_dict[name] = [value]
+				else:
+					sweep_parameter_dict[name].append(value)
+
+		# Run HSPICE sweep
+		if ERF_MONITOR_VERBOSE:
+			print("Running HSPICE sweep on: " + sp_path + "")
+		spice_meas = spice_interface.run(sp_path, sweep_parameter_dict)
+
+		# This time around, we want to select the PMOS size that makes the difference
+		# between trise and tfall as small as possible. (we know that the minimum
+		# was in the interval we just swept)
+		current_best_tfall_trise_balance = 1
+		best_index = 0
+		for i in range(len(nm_size_list)):
+			if ("meas_" + inv_name + "_tfall") not in spice_meas:
+				inv_name = inv_name.lower()
+			if ("meas_" + inv_name + "_tfall") not in spice_meas:
+				print("ERROR! Unable to find '", inv_name, "' key in spice_meas")
+				exit(1)
+			tfall_str = spice_meas["meas_" + inv_name + "_tfall"][i]
+			trise_str = spice_meas["meas_" + inv_name + "_trise"][i]
+			# For some reason I occasionally see a failure due to "internal timestep being too small" The following shall avoid the program
+			# from crashing but it will throw away that part of the results
+			try:
+				tfall = float(tfall_str)
+			except ValueError:
+				tfall = 1;
+			try:
+				trise = float(trise_str)
+			except ValueError:
+				trise = 2;
+			diff = abs(tfall-trise)
+			if diff < current_best_tfall_trise_balance:
+				current_best_tfall_trise_balance = diff
+				best_index = i
+		target_tran_size = nm_size_list[best_index]
+
+		if ERF_MONITOR_VERBOSE:
+			print("ERF PMOS size is " + str(target_tran_size) + "\n")
+			
+	# End of the "if not self_loading"
+
+	sys.stdout.flush()
+
+	return target_tran_size
+
 
 
 def erf_inverter(sp_path, 
@@ -953,7 +1320,13 @@ def erf_inverter(sp_path,
 	# Get the rise and fall measurements for our inverter out of 'spice_meas'
 	# This was a single HSPICE run, so the value we want is at index 0
 
-	print('inv_name: ', inv_name)
+	# print('inv_name: ', inv_name)
+	if ("meas_" + inv_name + "_tfall") not in spice_meas:
+		inv_name = inv_name.lower()
+	if ("meas_" + inv_name + "_tfall") not in spice_meas:
+		print("ERROR! Unable to find '", inv_name, "' key in spice_meas")
+		exit(1)
+
 	inv_tfall_str = spice_meas["meas_" + inv_name + "_tfall"][0]
 	inv_trise_str = spice_meas["meas_" + inv_name + "_trise"][0]
 	
@@ -973,23 +1346,43 @@ def erf_inverter(sp_path,
 	# If the fall time is faster, pmos must be made bigger. 
 	if inv_trise > inv_tfall:
 		# ERF by increasing PMOS size
+		#Nathaniel Fredricks
+		# if ('nand2_' in inv_name or 'nand3_' in inv_name or 'nor2_' in inv_name) and 'inv_' not in inv_name:
+		# if ('nand2_' in inv_name or 'nand3_' in inv_name or 'nor2_' in inv_name) and 'inv_' not in inv_name:
+		# 	pmos_size = erf_noninverter_balance_trise_tfall(sp_path,
+		# 												inv_name,
+		# 												inv_size,
+		# 												pmos_name,
+		# 												parameter_dict,
+		# 												fpga_inst,
+		# 												spice_interface)
+		# else:
 		pmos_size = erf_inverter_balance_trise_tfall(sp_path,
-													 inv_name,
-													 inv_size,
-													 pmos_name,
-													 parameter_dict,
-													 fpga_inst,
-													 spice_interface)
-																   
+													inv_name,
+													inv_size,
+													pmos_name,
+													parameter_dict,
+													fpga_inst,
+													spice_interface)
+																
 	else:    
-		# ERF by increasing NMOS size 
+		# ERF by increasing NMOS size
+		# if 'nand2_' in inv_name or 'nand3_' in inv_name or 'nor2_' in inv_name:
+		# 	nmos_size = erf_noninverter_balance_trise_tfall(sp_path,
+		# 												inv_name,
+		# 												inv_size,
+		# 												pmos_name,
+		# 												parameter_dict,
+		# 												fpga_inst,
+		# 												spice_interface)
+		# else:
 		nmos_size = erf_inverter_balance_trise_tfall(sp_path,
-													 inv_name,
-													 inv_size,
-													 nmos_name,
-													 parameter_dict,
-													 fpga_inst,
-													 spice_interface)  
+													inv_name,
+													inv_size,
+													nmos_name,
+													parameter_dict,
+													fpga_inst,
+													spice_interface)  
 	 
 	# Update the parameter dict
 	if not fpga_inst.specs.use_finfet :
@@ -1056,15 +1449,18 @@ def erf(sp_path,
 		for i in range(len(element_names)):
 			circuit_element = element_names[i]
 			element_size = element_sizes[i]
+			print("Element size: ", element_size)
 	
 			# If the element is an inverter, equalize its rise and fall delays
 			# 'erf_inverter' will mutate parameter dict and the fpga object with ERFed sizes.
-			if element_names[i].startswith("inv_"):
-				erf_inverter(sp_path, 
+			#Nathaniel Fredricks: modified to allow for nand and nor gate erf.
+			# or element_names[i].startswith("nand2_") or element_names[i].startswith("nor2_") or element_names[i].startswith("nand3_")
+			if element_names[i].startswith("inv_"): #TODO: modify to allow for proper erf on nand and nor gates
+				erf_inverter(sp_path,
 							 circuit_element, 
 							 element_size, 
 							 parameter_dict, 
-							 fpga_inst, 
+							 fpga_inst,
 							 spice_interface)
 				
 	
@@ -1081,9 +1477,16 @@ def erf(sp_path,
 		# doesn't meet the ERF tolerance, we'll set the erf_tolerance_met flag to false
 		for circuit_element in element_names:
 			# We are only interested in inverters
-			if not circuit_element.startswith("inv_"):
+			if not circuit_element.startswith("inv_") :
+				# and not circuit_element.startswith("nand2_") \
+				# and not circuit_element.startswith("nor2_") \
+				# and not circuit_element.startswith("nand3_") :
 				continue
-
+			if ("meas_" + circuit_element + "_tfall") not in spice_meas:
+				circuit_element = circuit_element.lower()
+			if ("meas_" + circuit_element + "_tfall") not in spice_meas:
+				print("ERROR! Unable to find '", circuit_element, "' key in spice_meas")
+				exit(1)
 			# Get the tfall and trise delays for the inverter from the spice measurements
 			tfall = float(spice_meas["meas_" + circuit_element + "_tfall"][0])
 			trise = float(spice_meas["meas_" + circuit_element + "_trise"][0])
@@ -1097,6 +1500,12 @@ def erf(sp_path,
 				pmos_nm_size = int(parameter_dict[circuit_element + "_pmos"][0])
    
 			# Check to see if the ERF tolerance is met for this inverter
+			# if circuit_element.startswith("nand2_") \
+			# 	or circuit_element.startswith("nor2_") \
+			# 	or circuit_element.startswith("nand3_") :
+			# 	if erf_error > ERF_ERROR_TOLERANCE*2:
+			# 		erf_tolerance_met = False
+			# else:
 			if erf_error > ERF_ERROR_TOLERANCE:
 				erf_tolerance_met = False
 	
@@ -1125,8 +1534,11 @@ def erf(sp_path,
 
 	# Get the ERF ratios
 	erf_ratios = {}
-	for circuit_element in element_names:
+	for circuit_element in element_names: #Nathaniel Fredricks: Modified to allow nand and nor gates to be treated similarly
 		if circuit_element.startswith("inv_"):
+				# or circuit_element.startswith("nand2_") \
+				# or circuit_element.startswith("nor2_") \
+				# or circuit_element.startswith("nand3_") :
 			nmos_size = fpga_inst.transistor_sizes[circuit_element + "_nmos"]
 			pmos_size = fpga_inst.transistor_sizes[circuit_element + "_pmos"]
 			erf_ratios[circuit_element] = float(pmos_size)/nmos_size
@@ -1222,12 +1634,12 @@ def search_ranges(sizing_ranges, fpga_inst, sizable_circuit, opt_type, re_erf, a
 	
 	# Export current transistor sizes
 	# TODO: Turning this off for now
-	#tran_sizes_filename = (spice_filedir + 
+	# tran_sizes_filename = (spice_filedir + 
 	#                       "sizes_" + sizable_circuit.name + 
 	#                       "_o" + str(outer_iter) + 
 	#                       "_i" + str(inner_iter) + 
 	#                       "_b" + str(bunch_num) + ".txt")
-	#export_transistor_sizes(tran_sizes_filename, fpga_inst.transistor_sizes)
+	# export_transistor_sizes(tran_sizes_filename, fpga_inst.transistor_sizes)
 	
 	# Expand ranges to get a list of all possible sizing combinations from ranges
 	element_names, sizing_combos = expand_ranges(sizing_ranges)
@@ -1308,7 +1720,11 @@ def search_ranges(sizing_ranges, fpga_inst, sizable_circuit, opt_type, re_erf, a
 				# If transistor is an inverter, we need to do some stuff to calc sizes for
 				# both the NMOS and PMOS, if it is anything else (eg. ptran), we can just add 
 				# it directly.
-				if tran_name.startswith("inv_"):
+				#Nathaniel Fredricks: modified so that nand and nor gates are treated similarly (without naming them "inv")
+				if tran_name.startswith("inv_") :
+				# or tran_name.startswith("nand2_") \
+				# or tran_name.startswith("nor2_") \
+				# or tran_name.startswith("nand3_") :
 					if tran_name.endswith("_nmos"):
 						# If the NMOS is bigger than the PMOS
 						if erf_ratios[tmp_tran_name] < 1:
@@ -1515,7 +1931,17 @@ def search_ranges(sizing_ranges, fpga_inst, sizable_circuit, opt_type, re_erf, a
 			else:
 				best_combo_detailed[name + "_nmos"] = best_combo[i]
 				best_combo_detailed[name + "_pmos"] = best_combo[i]*best_combo_erf_ratios[name]
-		
+		#Nathaniel Fredricks: added changes to update the combo of nand and nor gates
+		# elif ("nand2_" in name) or ("nor2_" in name) or ("nand3_" in name):
+		# 	print("updating nand/nor combo")
+		# 	best_combo_dict[name] = best_combo[i]
+		# 	if best_combo_erf_ratios[name] < 1:
+		# 		best_combo_detailed[name + "_nmos"] = best_combo[i]/best_combo_erf_ratios[name]
+		# 		best_combo_detailed[name + "_pmos"] = best_combo[i]
+		# 	# If the PMOS is bigger than the NMOS
+		# 	else:
+		# 		best_combo_detailed[name + "_nmos"] = best_combo[i]
+		# 		best_combo_detailed[name + "_pmos"] = best_combo[i]*best_combo_erf_ratios[name]
 	return (best_combo_dict, best_combo_detailed, best_results[0])
   
 	
@@ -1541,7 +1967,8 @@ def format_transistor_sizes_to_basic_subciruits(transistor_sizes):
 	for tran_name, size in transistor_sizes.items():
 		stripped_name = tran_name.replace("_nmos", "")
 		stripped_name = stripped_name.replace("_pmos", "")
-		if "inv_" in stripped_name or "tgate_" in stripped_name:
+		#Nathaniel Fredricks. Added in nand and nor gates
+		if "inv_" in stripped_name or "tgate_" in stripped_name: # or "nand2_" in stripped_name or "nand3_" in stripped_name or "nor2_" in stripped_name:
 			if stripped_name in list(format_sizes.keys()):
 				if size < format_sizes[stripped_name]:
 					format_sizes[stripped_name] = size
@@ -1716,6 +2143,22 @@ def _find_initial_sizing_ranges(transistor_names, transistor_sizes):
 			min = 1
 			incr = 1
 			sizing_ranges[name] = (min, max, incr)
+		# elif "nand2_" in name or "nor2_" in name: #Nathaniel Fredricks: edited to increase max size nor nand and nor
+		# 	max = (size + (sizes_per_element/2))*3
+		# 	min = size - (sizes_per_element/2)
+		# 	incr = 1
+		# 	if min < 1:
+		# 		max = max - min
+		# 		min = 1
+		# 	sizing_ranges[name] = (min, max, incr)
+		# elif "nand3_" in name:
+		# 	max = (size + (sizes_per_element/2))*4
+		# 	min = size - (sizes_per_element/2)
+		# 	incr = 1
+		# 	if min < 1:
+		# 		max = max - min
+		# 		min = 1
+		# 	sizing_ranges[name] = (min, max, incr)
 		else:
 			# Grow the range on both sides of the current size (i.e. both larger sizes and smaller sizes)
 			max = size + (sizes_per_element/2)
@@ -1909,7 +2352,7 @@ def size_subcircuit_transistors(fpga_inst,
 			# Make a copy of the sizing ranges. size_ranges modifies the contents of the sizing_ranges dict.
 			# So we keep an unmodified copy up here (the original).
 			sizing_ranges_copy = sizing_ranges.copy()
-		
+			print(sizing_ranges_copy)
 			# Perform transistor sizing on ranges
 			search_ranges_return = search_ranges(sizing_ranges_copy,            
 												 fpga_inst, 
@@ -3190,6 +3633,7 @@ def size_fpga_transistors(fpga_inst, run_options, spice_interface):
 
 					#Size the transistors of this subcircuit
 					if quick_mode_dict[name] == 1:
+						#line below is where things are crashing
 						sizing_results_dict[name], sizing_results_detailed_dict[name] = size_subcircuit_transistors(fpga_inst, fpga_inst.RAM.cim.b2adder, "local", re_erf, area_opt_weight, delay_opt_weight, iteration, starting_transistor_sizes, spice_interface, 1, 0)
 					else:
 						sizing_results_dict[name]= sizing_results_list[len(sizing_results_list)-1][name]
