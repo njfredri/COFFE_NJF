@@ -21,7 +21,7 @@ ERF_ERROR_TOLERANCE = 0.1
 # Maximum number of times the algorithm will try to meet ERF_ERROR_TOLERANCE before quitting.
 ERF_MAX_ITERATIONS = 4
 
-
+ERF_SKIP_WORDS = ["boothr2", 'opmux', 'opencoder', 'pipeline']
 
 def expand_ranges(sizing_ranges):
 	""" The input to this function is a dictionary that describes the SPICE sweep
@@ -954,6 +954,9 @@ def erf_inverter(sp_path,
 	# This was a single HSPICE run, so the value we want is at index 0
 
 	print('inv_name: ', inv_name)
+	if str("meas_" + inv_name + "_tfall") not in spice_meas and str("meas_" + inv_name + "_tfall") not in spice_meas:
+		inv_name = inv_name.lower()
+	
 	inv_tfall_str = spice_meas["meas_" + inv_name + "_tfall"][0]
 	inv_trise_str = spice_meas["meas_" + inv_name + "_trise"][0]
 	
@@ -1060,6 +1063,10 @@ def erf(sp_path,
 			# If the element is an inverter, equalize its rise and fall delays
 			# 'erf_inverter' will mutate parameter dict and the fpga object with ERFed sizes.
 			if element_names[i].startswith("inv_"):
+				#Nathaniel Fredricks: added keywords to skip erf for pim designs
+				for word in ERF_SKIP_WORDS:
+					if word in element_names[i]:
+						continue
 				erf_inverter(sp_path, 
 							 circuit_element, 
 							 element_size, 
@@ -1085,6 +1092,8 @@ def erf(sp_path,
 				continue
 
 			# Get the tfall and trise delays for the inverter from the spice measurements
+			if str("meas_" + circuit_element + "_tfall") not in spice_meas and str("meas_" + circuit_element + "_tfall") not in spice_meas:
+				circuit_element = circuit_element.lower()
 			tfall = float(spice_meas["meas_" + circuit_element + "_tfall"][0])
 			trise = float(spice_meas["meas_" + circuit_element + "_trise"][0])
 			erf_error = abs((tfall - trise)/tfall)
@@ -1345,22 +1354,25 @@ def search_ranges(sizing_ranges, fpga_inst, sizable_circuit, opt_type, re_erf, a
 	tfall_trise_list = []
 	meas_logic_low_voltage = []
 	for i in range(len(sizing_combos)):
-		tfall_str = spice_meas["meas_total_tfall"][i]
-		trise_str = spice_meas["meas_total_trise"][i]
-		if spice_meas["meas_logic_low_voltage"][i] == "failed" :
-			meas_logic_low_voltage.append(1)
-		else :
-			meas_logic_low_voltage.append(float(spice_meas["meas_logic_low_voltage"][i]))
+		try:
+			tfall_str = spice_meas["meas_total_tfall"][i]
+			trise_str = spice_meas["meas_total_trise"][i]
+			if spice_meas["meas_logic_low_voltage"][i] == "failed" :
+				meas_logic_low_voltage.append(1)
+			else :
+				meas_logic_low_voltage.append(float(spice_meas["meas_logic_low_voltage"][i]))
 
-		if tfall_str == "failed":
-			tfall = 1
-		else:
-			tfall = float(tfall_str)
-		if trise_str == "failed":
-			trise = 1
-		else:
-			trise = float(trise_str)
-		tfall_trise_list.append((tfall, trise))
+			if tfall_str == "failed":
+				tfall = 1
+			else:
+				tfall = float(tfall_str)
+			if trise_str == "failed":
+				trise = 1
+			else:
+				trise = float(trise_str)
+			tfall_trise_list.append((tfall, trise))
+		except:
+			print("Error with index: ", i, " with circuit ", sizable_circuit.name)
   
 	# Get delay metric used for evaluation for each transistor sizing combo as well as 
 	# ERF error

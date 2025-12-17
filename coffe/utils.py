@@ -626,7 +626,8 @@ def load_params(filename,run_options):
         'arch_out_folder': "None",
         'gen_routing_metal_pitch': 0.0,
         'gen_routing_metal_layers': 0,
-        'enable_cim' : False #TODO: ensure this is implemented everywhere
+        'enable_cim' : False, #TODO: ensure this is implemented everywhere
+        'num_pes' : 0
     }
     
     #top level param types
@@ -792,6 +793,8 @@ def load_params(filename,run_options):
             param_dict["fpga_arch_params"]['gen_routing_metal_layers'] = int(value)
         elif param == 'enable_cim':
             param_dict["fpga_arch_params"]['enable_cim'] = bool(value)
+        elif param == 'num_pes':
+            param_dict['fpga_arch_params']['num_pes'] = int(value)
     
     # Check architecture parameters to make sure that they are valid
     check_arch_params(param_dict["fpga_arch_params"], filename)

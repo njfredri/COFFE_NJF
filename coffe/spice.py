@@ -153,7 +153,7 @@ class SpiceInterface(object):
         # Run the SPICE simulation and capture output
         output_filename = sp_filename.rstrip(".sp") + ".lis"
         output_file = open(output_filename, "w")
-        print("output filename:", output_filename)
+        print("hspice running output filename:", output_filename)
         hspice_success = False
         hspice_runs = 0
 
@@ -165,7 +165,7 @@ class SpiceInterface(object):
         while (not hspice_success) :
             # last I checked the license is available during the night, so we can try to run hspice uncomment below if this is untrue
             #utils.check_for_time()
-            subprocess.call(["hspice", sp_filename], stdout=output_file, stderr=output_file)
+            subprocess.call(["hspice", sp_filename, "-mt", "6"], stdout=output_file, stderr=output_file)
 
             # how come this file is closed here, it should be closed only if there is a success
             # since else the call process will write in a closed file
