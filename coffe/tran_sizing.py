@@ -21,7 +21,7 @@ ERF_ERROR_TOLERANCE = 0.1
 # Maximum number of times the algorithm will try to meet ERF_ERROR_TOLERANCE before quitting.
 ERF_MAX_ITERATIONS = 4
 
-ERF_SKIP_WORDS = ["boothr2", 'opmux', 'opencoder', 'pipeline']
+ERF_SKIP_WORDS = ["boothr2", 'opmux', 'opencoder', 'pipeline', 'pim', 'netnode', 'netcomb']
 
 def expand_ranges(sizing_ranges):
 	""" The input to this function is a dictionary that describes the SPICE sweep
@@ -3191,33 +3191,33 @@ def size_fpga_transistors(fpga_inst, run_options, spice_interface):
 					###################################
 					#Size the BoothR2 Adder
 					###################################
-					name = fpga_inst.RAM.cim.b2adder.name
-					# If this is the first iteration, use the 'initial_transistor_sizes' as the starting sizes. 
-					if iteration == 1:
-						quick_mode_dict[name] = 1
-						starting_transistor_sizes = format_transistor_sizes_to_basic_subciruits(fpga_inst.RAM.cim.b2adder.initial_transistor_sizes)
-					# If it's not the first iteration, we use the transistor sizes of the previous iteration as the starting sizes.
-					else:
-						starting_transistor_sizes = sizing_results_list[len(sizing_results_list)-1][name]
+					# name = fpga_inst.RAM.cim.b2adder.name
+					# # If this is the first iteration, use the 'initial_transistor_sizes' as the starting sizes. 
+					# if iteration == 1:
+					# 	quick_mode_dict[name] = 1
+					# 	starting_transistor_sizes = format_transistor_sizes_to_basic_subciruits(fpga_inst.RAM.cim.b2adder.initial_transistor_sizes)
+					# # If it's not the first iteration, we use the transistor sizes of the previous iteration as the starting sizes.
+					# else:
+					# 	starting_transistor_sizes = sizing_results_list[len(sizing_results_list)-1][name]
 
-					#Size the transistors of this subcircuit
-					if quick_mode_dict[name] == 1:
-						sizing_results_dict[name], sizing_results_detailed_dict[name] = size_subcircuit_transistors(fpga_inst, fpga_inst.RAM.cim.b2adder, "local", re_erf, area_opt_weight, delay_opt_weight, iteration, starting_transistor_sizes, spice_interface, 1, 0)
-					else:
-						sizing_results_dict[name]= sizing_results_list[len(sizing_results_list)-1][name]
-						sizing_results_detailed_dict[name] = sizing_results_detailed_list[len(sizing_results_list)-1][name]
+					# #Size the transistors of this subcircuit
+					# if quick_mode_dict[name] == 1:
+					# 	sizing_results_dict[name], sizing_results_detailed_dict[name] = size_subcircuit_transistors(fpga_inst, fpga_inst.RAM.cim.b2adder, "local", re_erf, area_opt_weight, delay_opt_weight, iteration, starting_transistor_sizes, spice_interface, 1, 0)
+					# else:
+					# 	sizing_results_dict[name]= sizing_results_list[len(sizing_results_list)-1][name]
+					# 	sizing_results_detailed_dict[name] = sizing_results_detailed_list[len(sizing_results_list)-1][name]
 					
-					if quick_mode_dict[name] == 1:
-						time_after_sizing = time.time()
-						past_cost = current_cost
-						current_cost =  cost_function(get_eval_area(fpga_inst, "local", fpga_inst.RAM.cim.b2adder, 1, 0), fpga_inst.RAM.cim.b2adder.delay, area_opt_weight, delay_opt_weight)   
-						if (past_cost - current_cost)/past_cost < fpga_inst.specs.quick_mode_threshold:
-							quick_mode_dict[name] = 0
+					# if quick_mode_dict[name] == 1:
+					# 	time_after_sizing = time.time()
+					# 	past_cost = current_cost
+					# 	current_cost =  cost_function(get_eval_area(fpga_inst, "local", fpga_inst.RAM.cim.b2adder, 1, 0), fpga_inst.RAM.cim.b2adder.delay, area_opt_weight, delay_opt_weight)   
+					# 	if (past_cost - current_cost)/past_cost < fpga_inst.specs.quick_mode_threshold:
+					# 		quick_mode_dict[name] = 0
 
-						print("Duration: " + str(time_after_sizing - time_before_sizing))
-						print("Current Cost: " + str(current_cost))
+					# 	print("Duration: " + str(time_after_sizing - time_before_sizing))
+					# 	print("Current Cost: " + str(current_cost))
 
-					time_before_sizing = time.time()
+					# time_before_sizing = time.time()
 
 			############################################
 			## Done sizing, update results lists

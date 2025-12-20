@@ -7,13 +7,13 @@ def PIM_DFF_generate(filename, use_finfet):
 		exit()
 	spice_file = open(filename, 'a')
 	filestring = '''
-\n.subckt PIM_DFF clk in out n_vdd n_gnd
-xi8 net74 net88 clk_bar clk n_vdd n_gnd tgate Wn=45n Wp=45n
+\n.subckt PIM_DFF clk in out outn n_vdd n_gnd
+xi8 net74 outn clk_bar clk n_vdd n_gnd tgate Wn=45n Wp=45n
 xi7 net73 net74 clk clk_bar n_vdd n_gnd tgate Wn=45n Wp=45n
 xi6 net72 net89 clk clk_bar n_vdd n_gnd tgate Wn=45n Wp=45n
 xi5 in net72 clk_bar clk n_vdd n_gnd tgate Wn=45n Wp=45n
 xi10 net73 net89 n_vdd n_gnd inv wn=45n wp=45n
-xi9 out net88 n_vdd n_gnd inv wn=45n wp=45n
+xi9 out outn n_vdd n_gnd inv wn=45n wp=45n
 xi4 net74 out n_vdd n_gnd inv wn=45n wp=45n
 xi1 net72 net73 n_vdd n_gnd inv wn=45n wp=45n
 xi0 clk clk_bar n_vdd n_gnd inv wn=45n wp=45n
@@ -21,6 +21,62 @@ xi0 clk clk_bar n_vdd n_gnd inv wn=45n wp=45n
 	spice_file.write(filestring)
 	spice_file.close()
 	tran_names_list=['inv_pim_ff_nmos', 'inv_pim_ff_pmos', 'tgate_pim_ff_nmos', 'tgate_pim_ff_pmos']
+	wire_names_list=[]
+	return tran_names_list, wire_names_list
+
+def PIM_DFF_LP_generate(filename, use_finfet):
+	if use_finfet:
+		print("error: coffe_njf not ready for finfet use")
+		exit()
+	spice_file = open(filename, 'a')
+	filestring = '''
+\n.subckt PIM_DFF_LP clk in out outn n_vdd n_gnd
+xi8 net74 outn clk_bar clk n_vdd n_gnd tgate_lp Wn=45n Wp=45n
+xi7 net73 net74 clk clk_bar n_vdd n_gnd tgate_lp Wn=45n Wp=45n
+xi6 net72 net89 clk clk_bar n_vdd n_gnd tgate_lp Wn=45n Wp=45n
+xi5 in net72 clk_bar clk n_vdd n_gnd tgate_lp Wn=45n Wp=45n
+xi10 net73 net89 n_vdd n_gnd inv_lp wn=45n wp=45n
+xi9 out outn n_vdd n_gnd inv_lp wn=45n wp=45n
+xi4 net74 out n_vdd n_gnd inv_lp wn=45n wp=45n
+xi1 net72 net73 n_vdd n_gnd inv_lp wn=45n wp=45n
+xi0 clk clk_bar n_vdd n_gnd inv_lp wn=45n wp=45n
+.ends\n'''
+	spice_file.write(filestring)
+	spice_file.close()
+	tran_names_list=['inv_lp_pim_ff_nmos', 'inv_lp_pim_ff_pmos', 'tgate_lp_pim_ff_nmos', 'tgate_lp_pim_ff_pmos']
+	wire_names_list=[]
+	return tran_names_list, wire_names_list
+
+def PIM_DFF_LE_generate(filename, use_finfet=False):
+	if use_finfet:
+		print("error: coffe_njf not ready for finfet use")
+		exit()
+	spice_file = open(filename, 'a')
+	filestring = '''
+\n*Subcitcuit for dff with load enable and sync-reset
+\n.subckt pim_dff_le clk in rst ce out vdd gnd
+xi15 net016 net052 ce net030 vdd gnd tgate wn=45n wp=58n
+xi0 out net052 net030 ce vdd gnd tgate wn=45n wp=58n
+xi13 rst net016 rst net057 vdd gnd tgate wn=45n wp=58n
+xi12 in net016 net057 rst vdd gnd tgate wn=45n wp=58n
+xi7 net069 net063 clk clk_bar vdd gnd tgate wn=45n wp=58n
+xi9 net072 net068 clk_bar clk vdd gnd tgate wn=45n wp=58n
+xi8 net070 net063 clk_bar clk vdd gnd tgate wn=45n wp=58n
+xi10 net071 net068 clk clk_bar vdd gnd tgate wn=45n wp=58n
+xi16 ce net030 vdd gnd inv wn=45n wp=58n
+xi14 rst net057 vdd gnd inv wn=45n wp=58n
+xi11 clk clk_bar vdd gnd inv wn=45n wp=58n
+xi6 net068 out vdd gnd inv wn=45n wp=58n
+xi1 net061 net069 vdd gnd inv wn=45n wp=58n
+xi2 net052 net070 vdd gnd inv wn=45n wp=58n
+xi3 net063 net061 vdd gnd inv wn=45n wp=58n
+xi5 net061 net071 vdd gnd inv wn=45n wp=58n
+xi4 out net072 vdd gnd inv wn=45n wp=58n
+.ends\n
+'''
+	spice_file.write(filestring)
+	spice_file.close()
+	tran_names_list=['inv_pim_ff_le_nmos', 'inv_pim_ff_le_pmos', 'tgate_pim_ff_le_nmos', 'tgate_pim_ff_le_pmos']
 	wire_names_list=[]
 	return tran_names_list, wire_names_list
 
@@ -1857,6 +1913,70 @@ def gen_pim_opmux_comb_64(spice_filename, circuit_name):
 	#Now Append the List of Wires
 	wire_names_list=[]
 	return tran_names_list, wire_names_list
+
+
+def gen_pim_netnode_comb(spice_filename, circuit_name=""):
+	spice_file = open(spice_filename, "a")
+	
+	# spice_file.write(".LIB PIM_NETNODE\n")
+	spice_file.write("\n")
+	spice_file.write("*capture signals are intended to be connected to the capture load-en dff\n")
+	spice_file.write(".SUBCKT net_node_3_1_mux in1 in2 in3 select1  select1_n select2 select2_n out n_vdd n_gnd\n")
+	spice_file.write("xtrans1 in1 mid1 select1_n select1 n_vdd n_gnd tgate wn=45n wp=45n\n")
+	spice_file.write("\n")
+	spice_file.write("xtrans2 in2 mid1 select1 select1_n n_vdd n_gnd tgate wn=45n wp=45n\n")
+	spice_file.write("\n")
+	spice_file.write("xtrans2_1 mid1 out select2_n select2 n_vdd n_gnd tgate wn=45n wp=45n\n")
+	spice_file.write("\n")
+	spice_file.write("xtrans2_2 in3 out select2 select2_n n_vdd n_gnd tgate wn=45n wp=45n\n")
+	spice_file.write(".ENDS net_node_3_1_mux\n")
+	spice_file.write("\n")
+	spice_file.write(".SUBCKT net_node_4_1_mux in1 in2 in3 in4 select1 select1_n select2 select2_n out n_vdd n_gnd\n")
+	spice_file.write("*Layer 1\n")
+	spice_file.write("xtrans1 in1 lay1_1 select1_n select1 n_vdd n_gnd tgate wn=45n wp=45n\n")
+	spice_file.write("\n")
+	spice_file.write("xtrans2 in2 lay1_1 select1 select1_n n_vdd n_gnd tgate wn=45n wp=45n\n")
+	spice_file.write("\n")
+	spice_file.write("xtrans3 in3 lay1_2 select1_n select1 n_vdd n_gnd tgate wn=45n wp=45n\n")
+	spice_file.write("\n")
+	spice_file.write("xtrans4 in4 lay1_2 select1 select1_n n_vdd n_gnd tgate wn=45n wp=45n\n")
+	spice_file.write("\n")
+	spice_file.write("*Layer 2\n")
+	spice_file.write("xtrans2_1 lay1_1 out select2_n select2 n_vdd n_gnd tgate wn=45n wp=45n\n")
+	spice_file.write("\n")
+	spice_file.write("xtrans2_2 lay1_2 out select2 select2_n n_vdd n_gnd tgate wn=45n wp=45n\n")
+	spice_file.write(".ENDS net_node_4_1_mux\n")
+	spice_file.write("\n")
+	spice_file.write("*from_capture and to_capture connect to the capture DFF's Q and D (respectively)\n")
+	spice_file.write(".subckt NetNode rf_in from_capture\n")
+	spice_file.write("+N_in E_in W_in S_in \n")
+	spice_file.write("+rx_conf0 rx_conf0_n rx_conf1 rx_conf1_n \n")
+	spice_file.write("+tx_conf0 tx_conf0_n tx_conf1 tx_conf1_n \n")
+	spice_file.write("+to_capture news_out \n")
+	spice_file.write("+n_vdd n_gnd \n")
+	spice_file.write("\n")
+	spice_file.write("*setup the rx\n")
+	spice_file.write("* net_node_4_1_mux in1 in2 in3 in4 select1 select1_n select2 select2_n out n_vdd n_gnd\n")
+	spice_file.write("Xrx N_in E_in W_in S_in rx_conf0 rx_conf0_n rx_conf1 rx_conf1_n to_capture n_vdd n_gnd net_node_4_1_mux\n")
+	spice_file.write("\n")
+	spice_file.write("*setup the tx\n")
+	spice_file.write("*                     capture_out in bypasses the DFF\n")
+	spice_file.write("Xtx rf_in from_capture to_capture tx_conf0 tx_conf0_n tx_conf1 tx_conf1_n news_out n_vdd n_gnd net_node_3_1_mux\n")
+	spice_file.write("* net_node_3_1_mux in1 in2 in3 select1  select1_n select2 select2_n out n_vdd n_gnd\n")
+	spice_file.write(".ends\n")
+	spice_file.write("\n")
+	# spice_file.write(".ENDL\n")
+	# spice_file.write(".END")
+	spice_file.close()
+
+	#Now Append the List of Transistors
+	tran_names_list=[]
+	tran_names_list.append("tgate_pim_netnode_comb_nmos")
+	tran_names_list.append("tgate_pim_netnode_comb_pmos")
+	#Now Append the List of Wires
+	wire_names_list=[]
+	return tran_names_list, wire_names_list
+
 
 def gen_pim_opmux(spice_filename, circuit_name, num_pes: int):
 	match num_pes:

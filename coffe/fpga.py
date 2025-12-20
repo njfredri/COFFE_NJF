@@ -5897,10 +5897,11 @@ class FPGA:
             #Update the area of the PEs
             if self.specs.enable_cim == True:
                 print("Updating area for the CIM Processing Elements")
-                self.area_dict['b2_adders_total'] = self.area_dict[self.RAM.cim.b2adder.name] * self.RAM.cim.num_pes
-                print("Booth Radix 2 Adders total area: " + str(self.area_dict['b2_adders_total']))
+                # self.area_dict['b2_adders_total'] = self.area_dict[self.RAM.cim.b2adder.name] * self.RAM.cim.num_pes
+                # print("Booth Radix 2 Adders total area: " + str(self.area_dict['b2_adders_total']))
 
-                self.area_dict['cim_tile_total'] = self.area_dict['b2_adders_total']
+                # self.area_dict['cim_tile_total'] = self.area_dict['b2_adders_total']
+                self.RAM.cim.update_area(area_dict=self.area_dict, width_dict=self.width_dict)
 
 
         if self.lb_height != 0.0:  
@@ -6825,38 +6826,58 @@ class FPGA:
 
             #Added by Nathaniel Fredricks
             if self.specs.enable_cim == True:
-                print("  Updating delays for CIM stuff")
-                print(" Updating delay for "+ self.RAM.cim.b2adder.name)
+                print("  Updating delays and power for CIM tile")
+                delay, power = self.RAM.cim.update_power_delay(spice_interface, parameter_dict)
+                print("         CIM delay: ", delay, "\n        CIM power: ", power)
+                # print(" Updating delay for "+ self.RAM.cim.b2adder.name)
                 #b2 adder
-                spice_meas = spice_interface.run(self.RAM.cim.b2adder.top_spice_path, parameter_dict)
-                tfall = float(spice_meas["meas_total_tfall"][0])
-                trise = float(spice_meas["meas_total_trise"][0])
-                self.RAM.cim.b2adder.tfall = tfall
-                self.RAM.cim.b2adder.trise = trise
-                self.RAM.cim.b2adder.delay = max(tfall, trise)
-                self.delay_dict[self.RAM.cim.b2adder.name] = self.RAM.cim.b2adder.delay
-                self.RAM.cim.b2adder.power = float(spice_meas["meas_avg_power"][0])
+                # spice_meas = spice_interface.run(self.RAM.cim.b2adder.top_spice_path, parameter_dict)
+                # tfall = float(spice_meas["meas_total_tfall"][0])
+                # trise = float(spice_meas["meas_total_trise"][0])
+                # self.RAM.cim.b2adder.tfall = tfall
+                # self.RAM.cim.b2adder.trise = trise
+                # self.RAM.cim.b2adder.delay = max(tfall, trise)
+                # self.delay_dict[self.RAM.cim.b2adder.name] = self.RAM.cim.b2adder.delay
+                # self.RAM.cim.b2adder.power = float(spice_meas["meas_avg_power"][0])
                 
-                #opencoder
-                spice_meas = spice_interface.run(self.RAM.cim.opencoder.top_spice_path, parameter_dict)
-                tfall = float(spice_meas["meas_total_tfall"][0])
-                trise = float(spice_meas["meas_total_trise"][0])
-                self.RAM.cim.opencoder.tfall = tfall
-                self.RAM.cim.opencoder.trise = trise
-                self.RAM.cim.opencoder.delay = max(tfall, trise)
-                self.delay_dict[self.RAM.cim.opencoder.name] = self.RAM.cim.opencoder.delay
-                self.RAM.cim.opencoder.power = float(spice_meas["meas_avg_power"][0])
+                # #opencoder
+                # spice_meas = spice_interface.run(self.RAM.cim.opencoder.top_spice_path, parameter_dict)
+                # tfall = float(spice_meas["meas_total_tfall"][0])
+                # trise = float(spice_meas["meas_total_trise"][0])
+                # self.RAM.cim.opencoder.tfall = tfall
+                # self.RAM.cim.opencoder.trise = trise
+                # self.RAM.cim.opencoder.delay = max(tfall, trise)
+                # self.delay_dict[self.RAM.cim.opencoder.name] = self.RAM.cim.opencoder.delay
+                # self.RAM.cim.opencoder.power = float(spice_meas["meas_avg_power"][0])
 
-                #opmux
-                spice_meas = spice_interface.run(self.RAM.cim.opmux.top_spice_path, parameter_dict)
-                print(spice_meas["meas_total_tfall"][0])
-                tfall = float(spice_meas["meas_total_tfall"][0])
-                trise = float(spice_meas["meas_total_trise"][0])
-                self.RAM.cim.opmux.tfall = tfall
-                self.RAM.cim.opmux.trise = trise
-                self.RAM.cim.opmux.delay = max(tfall, trise)
-                self.delay_dict[self.RAM.cim.opmux.name] = self.RAM.cim.opmux.delay
-                self.RAM.cim.opmux.power = float(spice_meas["meas_avg_power"][0])
+                # #opmux
+                # spice_meas = spice_interface.run(self.RAM.cim.opmux.top_spice_path, parameter_dict)
+                # print(spice_meas["meas_total_tfall"][0])
+                # tfall = float(spice_meas["meas_total_tfall"][0])
+                # trise = float(spice_meas["meas_total_trise"][0])
+                # self.RAM.cim.opmux.tfall = tfall
+                # self.RAM.cim.opmux.trise = trise
+                # self.RAM.cim.opmux.delay = max(tfall, trise)
+                # self.delay_dict[self.RAM.cim.opmux.name] = self.RAM.cim.opmux.delay
+                # self.RAM.cim.opmux.power = float(spice_meas["meas_avg_power"][0])
+
+                # ff_spice_meas = spice_interface.run(self.RAM.cim.pipeline.ff.top_spice_path, parameter_dict)
+                # ff_power = float(ff_spice_meas["meas_avg_power"][0])
+
+                # ff_lp_spice_meas = spice_interface.run(self.RAM.cim.pipeline.ff_lp.top_spice_path, parameter_dict)
+                # ff_lp_power = float(ff_lp_spice_meas["meas_avg_power"][0])
+
+                # self.RAM.cim.pipeline.update_power(ff_power, ff_lp_power)
+                # #netnode
+                # #TODO: add in netnode delay as a constant value
+                # spice_meas = spice_interface.run(self.RAM.cim.netnode.netcomb.top_spice_path, parameter_dict)
+                # netcomb_power = float(spice_meas['meas_avg_power'][0])
+                # self.RAM.cim.netnode.update_power(ff_power, netcomb_power)
+
+                # self.RAM.cim.power = self.RAM.cim.opmux.power + self.RAM.cim.opencoder.power + self.RAM.cim.b2adder.power + \
+                # self.RAM.cim.pipeline.power + self.RAM.cim.netnode.power
+                # print("Cim total power= ", self.RAM.cim.power)
+                
 
         else:
             print("  Updating delay for " + self.RAM.bldischarging.name)
@@ -7798,6 +7819,60 @@ class _OpEncoder(_SizableCircuit):
 
         return total_area
 
+class _PimALU(_CompoundCircuit):
+    def __init__(self, num_op_ff=2, num_cb_ff=1):
+        self.name = "pimalu"
+        self.b2adder = _BoothR2Adder(False)
+        self.opencoder = _OpEncoder(False)
+        self.ff_le = _PIMDFFLE()
+        self.num_op_ff = num_op_ff
+        self.num_cb_ff = num_cb_ff
+    
+    def generate(self, subcircuit_filename, min_tran_width):
+        self.initial_transistor_sizes = {}
+        self.initial_transistor_sizes.update(self.b2adder.generate(subcircuit_filename, min_tran_width, False))
+        self.initial_transistor_sizes.update(self.opencoder.generate(subcircuit_filename, min_tran_width, False))
+        self.initial_transistor_sizes.update(self.ff_le.generate(subcircuit_filename, min_tran_width))
+        return self.initial_transistor_sizes
+
+    def generate_top(self):
+        print("Generating top-level submodule for pim alu")
+        self.b2adder.generate_top()
+        self.opencoder.generate_top()
+        self.ff_le.generate_top()
+
+    def update_area(self, area_dict, width_dict):
+        area = 0.0
+        area += self.b2adder.update_area(area_dict, width_dict)
+        area += self.opencoder.update_area(area_dict, width_dict)
+        
+        ff_area = (self.ff_le.update_area(area_dict, width_dict))*(self.num_cb_ff+self.num_op_ff)
+        area += ff_area
+        area_dict[self.name] = area
+        width_dict[self.name] = math.sqrt(area)
+        return area
+    
+    def update_power_delay(self, spice_interface, parameter_dict, dff_le_power):
+        b2adder_spice = spice_interface.run(self.b2adder.top_spice_path, parameter_dict)
+        opencoder_spice = spice_interface.run(self.opencoder.top_spice_path, parameter_dict)
+        
+        #store power and delay stats each subcircuit
+        self.b2adder_power = float(b2adder_spice['meas_avg_power'][0])
+        tfall = float(b2adder_spice["meas_total_tfall"][0])
+        trise = float(b2adder_spice["meas_total_trise"][0])
+        self.b2adder_delay = max(tfall, trise)
+
+        self.opencoder_spice = float(opencoder_spice['meas_avg_power'][0])
+        tfall = float(opencoder_spice["meas_total_tfall"][0])
+        trise = float(opencoder_spice["meas_total_trise"][0])
+        self.opencoder_delay = max(tfall, trise)
+
+        self.totaldelay = self.ff_le.t_setup + self.b2adder_delay
+        self.totalpower = dff_le_power*(self.num_cb_ff+self.num_op_ff)
+        self.totalpower += self.b2adder_power
+        self.totalpower += self.opencoder_delay
+        return self.totaldelay, self.totalpower
+
 class _OpMux(_SizableCircuit):
     def __init__(self, num_pes: int, use_finfet):
         self.name = "opmux"
@@ -7809,7 +7884,6 @@ class _OpMux(_SizableCircuit):
     def generate(self, subcircuit_filename, min_tran_width, use_finfet):
         self.transistor_names, self.wires_names = pim_subcircuits.gen_pim_opmux(subcircuit_filename, self.name, self.num_pes)
         print("Generated pim opmux")
-        print(self.transistor_names)
         # ['nand3_pim_opmux_comb_32_nmos', 'nand3_pim_opmux_comb_32_pmos', 
         # 'inv_pim_opmux_comb_32_nmos', 'inv_pim_opmux_comb_32_pmos', 
         # 'nor2_pim_opmux_comb_32_nmos', 'nor2_pim_opmux_comb_32_pmos', 
@@ -7859,7 +7933,17 @@ class _OpMux(_SizableCircuit):
 
         return total_area
 
+    def update_power_delay(self, spice_interface, parameter_dict, pipe_delay):
+        self.spic = spice_interface.run(self.top_spice_path, parameter_dict)
+        self.totalpower = float(self.spic['meas_avg_power'][0])
+        tfall = float(self.spic['meas_total_tfall'][0])
+        trise = float(self.spic['meas_total_trise'][0])
+        self.totaldelay = max(tfall, trise)
+        self.totaldelay += pipe_delay
+        return self.totaldelay, self.totalpower
+
 class _PIMDFF: #coffe does not do transistor sizing for flip flops
+    already_generated = False
     def __init__(self): #use use_ff=False to use latches
         self.name = "pimdff"
         self.transistor_names = []
@@ -7870,30 +7954,24 @@ class _PIMDFF: #coffe does not do transistor sizing for flip flops
         # Path to the top level spice file
         self.top_spice_path = ""   
         # 
-        self.t_setup = 1
-        # 
-        self.t_clk_to_q = 1
-        # Delay weight used to calculate delay of representative critical path
-        self.delay_weight = 1
-        # self.use_finfet = use_finfet
-        # self.use_tgate = use_tgate
+        self.t_setup = 9e-12
 
     def generate(self, subcircuit_filename, min_tran_width):
-        self.transistor_names, self.wire_names = pim_subcircuits.PIM_DFF_generate(subcircuit_filename, False)
+        if(_PIMDFF.already_generated==False):
+            self.transistor_names, self.wire_names = pim_subcircuits.PIM_DFF_generate(subcircuit_filename, False)
+            _PIMDFF.already_generated=True
         self.initial_transistor_sizes["inv_pim_ff_nmos"] = 1
         self.initial_transistor_sizes["inv_pim_ff_pmos"] = 1
         self.initial_transistor_sizes["tgate_pim_ff_nmos"] = 1
         self.initial_transistor_sizes["tgate_pim_ff_pmos"] = 1
         return self.initial_transistor_sizes
         
-
-
     def generate_top(self):
-        pass
+        print("Generating top-level submodule for pim dff")
+        self.top_spice_path = top_level.generate_pim_dff_top(self.name)
 
     def update_area(self, area_dict, width_dict):
         area = 0.0
-        print(area_dict.keys())
         area = (area_dict['inv_pim_ff']*5)+(area_dict['tgate_pim_ff']*4)
         width = math.sqrt(area)
         area_dict[self.name]=area
@@ -7904,22 +7982,103 @@ class _PIMDFF: #coffe does not do transistor sizing for flip flops
     def update_wires(self):
         return
 
+class _PIMDFFLP: #coffe does not do transistor sizing for flip flops
+    already_generated = False
+    def __init__(self): #use use_ff=False to use latches
+        self.name = "pimdfflp"
+        self.transistor_names = []
+        # A list of the names of wires in this subcircuit
+        self.wire_names = []
+        # A dictionary of the initial transistor sizes
+        self.initial_transistor_sizes = {}
+        # Path to the top level spice file
+        self.top_spice_path = ""   
+        # 
+        self.t_setup = 48e-12
+
+    def generate(self, subcircuit_filename, min_tran_width):
+        if(_PIMDFF.already_generated==False):
+            self.transistor_names, self.wire_names = pim_subcircuits.PIM_DFF_LP_generate(subcircuit_filename, False)
+            _PIMDFF.already_generated=True
+        self.initial_transistor_sizes["inv_lp_pim_ff_nmos"] = 1
+        self.initial_transistor_sizes["inv_lp_pim_ff_pmos"] = 1
+        self.initial_transistor_sizes["tgate_lp_pim_ff_nmos"] = 1
+        self.initial_transistor_sizes["tgate_lp_pim_ff_pmos"] = 1
+        return self.initial_transistor_sizes
+        
+    def generate_top(self):
+        print("Generating top-level submodule for pim dff lp")
+        self.top_spice_path = top_level.generate_pim_dff_top(self.name)
+
+    def update_area(self, area_dict, width_dict):
+        area = 0.0
+        area = (area_dict['inv_lp_pim_ff']*5)+(area_dict['tgate_lp_pim_ff']*4)
+        width = math.sqrt(area)
+        area_dict[self.name]=area
+        width_dict[self.name]=width
+        print("Pim Dff lp area=", area)
+        return area
+
+    def update_wires(self):
+        return
+
+class _PIMDFFLE: #d flipflop with load_en and reset
+    already_generated = False
+    def __init__(self):
+        self.name = "pimdffle"
+        self.transistor_names = []
+        self.wire_names = []
+        self.initial_transistor_sizes = {}
+        self.top_spice_path = ""
+        #todo: add in these values as constant
+        self.t_setup = 38e-12
+    
+    def generate(self, subcircuit_filename, min_tran_width):
+        if(_PIMDFFLE.already_generated==False):
+            self.transistor_names, self.wire_names = pim_subcircuits.PIM_DFF_LE_generate(subcircuit_filename)
+            _PIMDFFLE.already_generated=True
+        self.initial_transistor_sizes["inv_pim_ffle_nmos"] = 1
+        self.initial_transistor_sizes["inv_pim_ffle_pmos"] = 1.28
+        self.initial_transistor_sizes["tgate_pim_ffle_nmos"] = 1
+        self.initial_transistor_sizes["tgate_pim_ffle_pmos"] = 1.28
+        return self.initial_transistor_sizes
+
+    def generate_top(self):
+        print("Generating top-level submodule for pim dff le")
+        self.top_spice_path = top_level.generate_pim_dff_le_top(self.name)
+
+    def update_area(self, area_dict, width_dict):
+        area = 0.0
+        area = (area_dict['inv_pim_ffle']*9)+(area_dict['tgate_pim_ffle']*8)
+        width = math.sqrt(area)
+        area_dict[self.name]=area
+        width_dict[self.name]=width
+        print("Pim Dff LE area=", area)
+        return area
+    
+
 class _PIMPipeline(_CompoundCircuit):       #vvv is only 1 since the first pipeline is built into the BRAM already
-    def __init__(self, num_pes, net_in=1, num_double_stages=1, num_single_stages=2, num_net_stages=0):
+    def __init__(self, num_pes, net_in=1, num_double_stages=0, num_single_stages=1, num_net_stages=0, num_double_stages_lp=2, num_single_stages_lp=1):
         self.name = "pimpipeline"
         self.num_pes = num_pes
         self.net_in = net_in
         self.ff = _PIMDFF()
+        self.ff_lp = _PIMDFFLP()
         self.num_double_stages = num_double_stages
         self.num_single_stages = num_single_stages
         self.num_net_stages = num_net_stages
+        self.num_double_stages_lp = num_double_stages_lp
+        self.num_single_stages_lp = num_single_stages_lp
         return
 
     def generate(self, subcircuit_filename, min_tran_width):
         trans = self.ff.generate(subcircuit_filename, min_tran_width)
+        trans.update(self.ff_lp.generate(subcircuit_filename, min_tran_width))
         return trans
     
     def generate_top(self):
+        self.ff.generate_top()
+        self.ff_lp.generate_top()
         return
 
     def update_area(self, area_dict, width_dict):
@@ -7929,6 +8088,13 @@ class _PIMPipeline(_CompoundCircuit):       #vvv is only 1 since the first pipel
         area += (ff_area*self.num_pes*self.num_double_stages*2)
         #for single stages
         area += (ff_area*self.num_pes*self.num_single_stages)
+        
+        ff_lp_area = self.ff_lp.update_area(area_dict, width_dict)
+        #for double stages
+        area += (ff_lp_area*self.num_pes*self.num_double_stages_lp*2)
+        #for single stages
+        area += (ff_lp_area*self.num_pes*self.num_single_stages_lp)
+        
         #for network data (not used rn)
         #area += (ff_area*self.net_in*self.num_net_stages)
         width_dict[self.name] = math.sqrt(area)
@@ -7936,41 +8102,134 @@ class _PIMPipeline(_CompoundCircuit):       #vvv is only 1 since the first pipel
         print('pipeline area=', area)
         return area
 
+    def update_power_delay(self, ff_power, ff_lp_power):
+        reg_ff_cnt = ((self.num_double_stages*2)+(self.num_single_stages))*self.num_pes
+        lp_ff_cnt = ((self.num_double_stages_lp*2)+(self.num_single_stages_lp))*self.num_pes
+        self.totalpower = (ff_power*reg_ff_cnt)+(ff_lp_power*lp_ff_cnt)
+        self.totaldelay = 0 #don't care
+        return self.totaldelay, self.totalpower
+
+class _PIMNetComb(_SizableCircuit):
+    def __init__(self):
+        self.name="pimnetcomb"
+        self.area=0
+        self.width=0
+    
+    def generate(self, subcircuit_filename, min_tran_width, use_finfet):
+        self.transistor_names, self.wire_names = pim_subcircuits.gen_pim_netnode_comb(subcircuit_filename, self.name)
+        print("Generated PIM Network Node (combinational portion)")
+        self.initial_transistor_sizes['tgate_pim_netnode_comb_nmos'] = 1
+        self.initial_transistor_sizes['tgate_pim_netnode_comb_pmos'] = 1
+        return self.initial_transistor_sizes
+
+    def generate_top(self):
+        print("Generating top-level submodule for PIM NetNode Comb")
+        self.top_spice_path = top_level.generate_pim_netnode_top(self.name)
+    
+    def update_area(self, area_dict, width_dict):
+        tgate_area = area_dict['tgate_pim_netnode_comb']
+        total_area = tgate_area
+        area_dict[self.name] = total_area
+        width_dict[self.name] = math.sqrt(total_area)
+        return total_area
+    
+class _PIMNetNode(_CompoundCircuit):
+    def __init__(self, num_config_dff=4, num_cap_dff=1):
+        self.name = "pimnetnode"
+        self.netcomb = _PIMNetComb()
+        self.ff_lp = _PIMDFFLP()
+        self.ff_le = _PIMDFFLE()
+        self.num_config_dff = num_config_dff #looad en for config
+        self.num_cap_dff = num_cap_dff #low power for capture
+    
+    def generate(self, subcircuit_filename, min_tran_width):
+        init_tran_sizes = {}
+        init_tran_sizes.update(self.netcomb.generate(subcircuit_filename, min_tran_width, False))
+        init_tran_sizes.update(self.ff_lp.generate(subcircuit_filename, min_tran_width))
+        init_tran_sizes.update(self.ff_le.generate(subcircuit_filename, min_tran_width))
+        return init_tran_sizes
+    
+    def generate_top(self):
+        try:
+            if(self.ff_lp.top_spice_path == None):
+                self.ff_lp.generate_top()
+        except:
+            self.ff_lp.generate_top()
+        try:
+            if(self.ff_le.top_spice_path == None):
+                self.ff_le.generate_top()
+        except:
+            self.ff_le.generate_top()
+        self.netcomb.generate_top()
+
+
+    def update_area(self, area_dict, width_dict):
+        ff_area = self.ff_lp.update_area(area_dict, width_dict)
+        ff_le_area = self.ff_le.update_area(area_dict, width_dict)
+        comb_area = self.netcomb.update_area(area_dict, width_dict)
+        total_area = (ff_area*self.num_cap_dff)+ (ff_le_area*self.num_config_dff) + comb_area
+        area_dict[self.name] = total_area
+        width_dict[self.name] = math.sqrt(total_area)
+        return total_area
+    
+    # def update_power(self, ff_lp_power, ff_le_power, comb_power):
+    #     ff_total_power = (ff_lp_power*self.num_cap_dff)+(ff_le_power*self.num_config_dff)
+    #     self.power = ff_total_power + comb_power
+    #     return self.power
+
+    def update_power_delay(self, spice_interface, parameter_dict, dff_lp_power, dff_le_power):
+        comb_spice = spice_interface.run(self.netcomb.top_spice_path, parameter_dict)
+        self.netcomb_power = float(comb_spice['meas_avg_power'][0])
+        tfall = float(comb_spice['meas_total_tfall'][0])
+        trise = float(comb_spice['meas_total_trise'][0])
+        self.netcomb_delay = max(tfall, trise)
+
+        self.totaldelay = self.ff_lp.t_setup + self.netcomb_delay
+        self.ff_power = (dff_lp_power*self.num_cap_dff) + (dff_le_power*self.num_config_dff)
+        self.totalpower = self.netcomb_power + self.ff_power
+        return self.totaldelay, self.totalpower
+
 
 class _CIM(_CompoundCircuit):
     def __init__(self, num_pes):
         self.name = "CIM"
         self.num_pes = num_pes
-        self.b2adder = _BoothR2Adder(False)
+        self.alu = _PimALU(2,1)
         self.opmux = _OpMux(num_pes, use_finfet=False)
-        self.opencoder = _OpEncoder(False)
-        self.pipeline = _PIMPipeline(num_pes)
+        # self.opencoder = _OpEncoder(False)
+        # only count 3 pipeline stages as 1 is built into the bram already
+        self.pipeline = _PIMPipeline(num_pes, net_in=0, num_double_stages=0, num_single_stages=1, num_net_stages=0, num_double_stages_lp=2, num_single_stages_lp=0)
+        self.netnode = _PIMNetNode()
         return
 
     def generate_top(self):
+        self.alu.generate_top()
         self.opmux.generate_top()
-        self.opencoder.generate_top()
+        # self.opencoder.generate_top()
         self.pipeline.generate_top()
-        self.b2adder.generate_top()
-
+        self.netnode.generate_top()
         return
     
     def generate(self, subcircuit_filename, min_tran_width):
         init_tran_sizes = {}
+        init_tran_sizes.update(self.alu.generate(subcircuit_filename, min_tran_width))
         init_tran_sizes.update(self.opmux.generate(subcircuit_filename, min_tran_width, False))
-        init_tran_sizes.update(self.opencoder.generate(subcircuit_filename, min_tran_width, False))
+        # init_tran_sizes.update(self.opencoder.generate(subcircuit_filename, min_tran_width, False))
         init_tran_sizes.update(self.pipeline.generate(subcircuit_filename, min_tran_width))
-        init_tran_sizes.update(self.b2adder.generate(subcircuit_filename, min_tran_width, False))
+        init_tran_sizes.update(self.netnode.generate(subcircuit_filename, min_tran_width))
+        # init_tran_sizes.update(self.b2adder.generate(subcircuit_filename, min_tran_width, False))
         print(init_tran_sizes)
         return init_tran_sizes
     
     def update_area(self, area_dict, width_dict):
+        alu_area = self.alu.update_area(area_dict, width_dict)
         opmux_area = self.opmux.update_area(area_dict, width_dict)
-        opencoder_area = self.opencoder.update_area(area_dict, width_dict)
+        # opencoder_area = self.opencoder.update_area(area_dict, width_dict)
         pipeline_area = self.pipeline.update_area(area_dict, width_dict)
-        b2adder_area = self.b2adder.update_area(area_dict, width_dict)
+        netnode_area = self.pipeline.update_area(area_dict, width_dict)
+        # b2adder_area = self.b2adder.update_area(area_dict, width_dict)
 
-        total_area = opmux_area + pipeline_area + (self.num_pes*(b2adder_area+opencoder_area))
+        total_area = opmux_area + pipeline_area + (self.num_pes*alu_area) + netnode_area
 
         area_dict['cim'] = total_area
         width_dict['cim'] = math.sqrt(total_area)
@@ -7983,3 +8242,22 @@ class _CIM(_CompoundCircuit):
         utils.print_and_write(report_file, "-CIM Tile Details:")
         utils.print_and_write(report_file, "    Number of PEs=" + str(self.num_pes))
     
+    def update_power_delay(self, spice_interface: spice.SpiceInterface, parameter_dict):
+        #get power of flipflops first
+        dff = spice_interface.run(self.pipeline.ff.top_spice_path, parameter_dict)
+        dff_power = float(dff['meas_avg_power'][0])
+        dfflp = spice_interface.run(self.pipeline.ff_lp.top_spice_path, parameter_dict)
+        dfflp_power = float(dfflp['meas_avg_power'][0])
+        dffle = spice_interface.run(self.alu.ff_le.top_spice_path, parameter_dict)
+        dffle_power = float(dffle['meas_avg_power'][0])
+
+        #go through and get delay from each part. final delay will be max(delays+setup_time)
+        alu_del, alu_pow = self.alu.update_power_delay(spice_interface, parameter_dict, dffle_power)
+        opm_del, opm_pow = self.opmux.update_power_delay(spice_interface, parameter_dict, self.pipeline.ff_lp.t_setup)
+        pil_del, pil_pow = self.pipeline.update_power_delay(dff_power, dfflp_power)
+        net_del, net_pow = self.netnode.update_power_delay(spice_interface, parameter_dict, dfflp_power, dffle_power)
+        print("CIM subcircuit delays and powers:")
+        print(alu_del, ',', alu_pow, '\t', opm_del, ',', opm_pow, '\t', pil_del, ',', pil_pow, '\t', net_del, ',', net_pow)
+        self.total_delay = max(alu_del, opm_del, net_del)
+        self.total_power = (alu_pow*self.num_pes) + opm_pow, + pil_pow + net_pow
+        return self.total_delay, self.total_power

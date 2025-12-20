@@ -180,6 +180,23 @@ def nand2_generate_lp(filename, use_finfet):
 		spice_file.write("MPUP2 n_out n_in n_vdd n_vdd pmos_lp L=gate_length W=Wp ")
 		spice_file.write("AS=Wn*trans_diffusion_length AD=Wn*trans_diffusion_length PS=Wn+2*trans_diffusion_length PD=Wn+2*trans_diffusion_length\n")
 		spice_file.write(".ENDS\n\n\n")
+
+		spice_file.write('''\n******************************************************************************************
+* nand2 decoder Low Power
+******************************************************************************************
+.SUBCKT nand2_lp_decode n_in1 n_in2 n_out n_vdd n_gnd Wn=45n Wp=45n
+MNDOWN2 n_out n_in1 n_z n_gnd nmos_lp L=gate_length W=Wn AS=Wn*trans_diffusion_length AD=Wn*trans_diffusion_length PS=Wn+2*trans_diffusion_length PD=Wn+2*trans_diffusion_length
+MNDOWN1 n_z n_in2 n_gnd n_gnd nmos_lp L=gate_length W=Wn AS=Wn*trans_diffusion_length AD=Wn*trans_diffusion_length PS=Wn+2*trans_diffusion_length PD=Wn+2*trans_diffusion_length
+MPUP1 n_out n_in1 n_vdd n_vdd pmos_lp L=gate_length W=Wp AS=Wn*trans_diffusion_length AD=Wn*trans_diffusion_length PS=Wn+2*trans_diffusion_length PD=Wn+2*trans_diffusion_length
+MPUP2 n_out n_in2 n_vdd n_vdd pmos_lp L=gate_length W=Wp AS=Wn*trans_diffusion_length AD=Wn*trans_diffusion_length PS=Wn+2*trans_diffusion_length PD=Wn+2*trans_diffusion_length
+.ENDS\n\n\n''')
+		
+		spice_file.write('''\n.SUBCKT nor2_lp_decode n_in1 n_in2 n_out n_vdd n_gnd Wn=45n Wp=45n
+MNDOWN2 n_out n_in1 n_gnd n_gnd nmos_lp L=gate_length W=Wn AS=Wn*trans_diffusion_length AD=Wn*trans_diffusion_length PS=Wn+2*trans_diffusion_length PD=Wn+2*trans_diffusion_length
+MNDOWN1 n_out n_in2 n_gnd n_gnd nmos_lp L=gate_length W=Wn AS=Wn*trans_diffusion_length AD=Wn*trans_diffusion_length PS=Wn+2*trans_diffusion_length PD=Wn+2*trans_diffusion_length
+MPUP1 n_out n_in1 n_z n_vdd pmos_lp L=gate_length W=Wp AS=Wn*trans_diffusion_length AD=Wn*trans_diffusion_length PS=Wn+2*trans_diffusion_length PD=Wn+2*trans_diffusion_length
+MPUP2 n_z n_in2 n_vdd n_vdd pmos_lp L=gate_length W=Wp AS=Wn*trans_diffusion_length AD=Wn*trans_diffusion_length PS=Wn+2*trans_diffusion_length PD=Wn+2*trans_diffusion_length
+.ENDS\n\n\n''')
 	else :
 		spice_file.write("******************************************************************************************\n")
 		spice_file.write("* nand2\n")
@@ -289,6 +306,18 @@ def nand3_generate_lp(filename, use_finfet):
 		spice_file.write("MPUP2 n_out n_in n_vdd n_vdd pmos_lp L=gate_length W=Wp ")
 		spice_file.write("AS=Wn*trans_diffusion_length AD=Wn*trans_diffusion_length PS=Wn+2*trans_diffusion_length PD=Wn+2*trans_diffusion_length\n")
 		spice_file.write(".ENDS\n\n\n")
+		spice_file.write('''\n******************************************************************************************
+* nand3 decoder low power
+******************************************************************************************
+.SUBCKT nand3_lp_decode n_in1 n_in2 n_in3 n_out n_vdd n_gnd Wn=45n Wp=45n
+MNDOWN3 n_out n_in1 n_z n_gnd nmos_lp L=gate_length W=Wn AS=Wn*trans_diffusion_length AD=Wn*trans_diffusion_length PS=Wn+2*trans_diffusion_length PD=Wn+2*trans_diffusion_length
+MNDOWN2 n_z n_in2 n_y n_gnd nmos_lp L=gate_length W=Wn AS=Wn*trans_diffusion_length AD=Wn*trans_diffusion_length PS=Wn+2*trans_diffusion_length PD=Wn+2*trans_diffusion_length
+MNDOWN1 n_y n_in3 n_gnd n_gnd nmos_lp L=gate_length W=Wn AS=Wn*trans_diffusion_length AD=Wn*trans_diffusion_length PS=Wn+2*trans_diffusion_length PD=Wn+2*trans_diffusion_length
+MPUP1 n_out n_in1 n_vdd n_vdd pmos_lp L=gate_length W=Wp AS=Wn*trans_diffusion_length AD=Wn*trans_diffusion_length PS=Wn+2*trans_diffusion_length PD=Wn+2*trans_diffusion_length
+MPUP2 n_out n_in2 n_vdd n_vdd pmos_lp L=gate_length W=Wp AS=Wn*trans_diffusion_length AD=Wn*trans_diffusion_length PS=Wn+2*trans_diffusion_length PD=Wn+2*trans_diffusion_length
+MPUP3 n_out n_in3 n_vdd n_vdd pmos_lp L=gate_length W=Wp AS=Wn*trans_diffusion_length AD=Wn*trans_diffusion_length PS=Wn+2*trans_diffusion_length PD=Wn+2*trans_diffusion_length
+.ENDS\n\n\n''')
+		
 	else :
 		spice_file.write("******************************************************************************************\n")
 		spice_file.write("* nand3\n")
@@ -575,3 +604,4 @@ xi24 b net021 vdd gnd inv
 	spice_file.write(filestring)
 	spice_file.close()
 	return
+

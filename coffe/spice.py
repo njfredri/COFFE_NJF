@@ -151,12 +151,16 @@ class SpiceInterface(object):
          
         # Creat an output file having the ending .lis
         # Run the SPICE simulation and capture output
-        output_filename = sp_filename.rstrip(".sp") + ".lis"
+
+        # output_filename = sp_filename.strip(".sp") + ".lis"
+        output_filename = sp_filename.strip().replace('.sp','.lis')
         output_file = open(output_filename, "w")
         print("hspice running output filename:", output_filename)
         hspice_success = False
         hspice_runs = 0
-
+        if 'dff' in sp_filename.lower():
+            print(sp_filename)
+            print(output_filename)
         # HSPICE simulations might fail for some reasons:
         # 1- The input file is incorrect, which would be a bug within COFFE.
         # 2- HSPICE fails to checheck out the license, assuming the license exists, it is likely due
