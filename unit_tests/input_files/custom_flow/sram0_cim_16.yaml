@@ -64,7 +64,8 @@ fpga_arch_params:
   enable_bram_module  :  1
 
   #Memory block voltage (low power transistors)
-  vdd_low_power  :  0.95
+  # vdd_low_power  :  0.80 #changed as all 22nm_bulk_hp transistors use 0.8V
+  vdd_low_power  :  0.95 #Changed to better match other papers
 
 
   # Memory technology type can be 'SRAM' or 'MTJ'.
@@ -76,13 +77,18 @@ fpga_arch_params:
   # To make it controllable, I decided that this bit will always be taken from the row decoder.
 
   # Row decoder
-  row_decoder_bits  :  7
+  row_decoder_bits  :  7 #needs to be 128 
   # Column decoder
-  col_decoder_bits  :  1
+  col_decoder_bits  :  2 #4:1
   # Width configurable decoder
-  conf_decoder_bits  :  5
+  conf_decoder_bits  :  5  #needs to support 160/4 or 40 lines. Between 5 and 6 bits. 5 bits = 16Kbits. 6bits = 32Kbits. Must be >= 4 bits.
   # Number of RAM banks
   number_of_banks  :  1
+  #weighted so X*16 + (1-X)*32 = 20.
+  # 16X + 32 -32X = 20
+  # 12 = 16X
+  # 3/4 = X
+  
 
   #16bit config
   #   # Row decoder
@@ -96,7 +102,7 @@ fpga_arch_params:
 
   # COFFE_NJF variables
   enable_cim : true
-
+  num_pes : 32
 
   # voltage difference for the sense amp in volts
   sense_dv  :  0.03
