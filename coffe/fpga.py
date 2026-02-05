@@ -5901,7 +5901,14 @@ class FPGA:
                 # print("Booth Radix 2 Adders total area: " + str(self.area_dict['b2_adders_total']))
 
                 # self.area_dict['cim_tile_total'] = self.area_dict['b2_adders_total']
-                self.RAM.cim.update_area(area_dict=self.area_dict, width_dict=self.width_dict)
+                cim_area = self.RAM.cim.update_area(area_dict=self.area_dict, width_dict=self.width_dict)
+                RAM_area += cim_area
+                self.area_dict['areaoverhead_cim_tile'] = cim_area
+                self.area_dict['ram'] = RAM_area
+                self.width_dict["ram"] = math.sqrt(RAM_area)
+                self.area_dict['ram_core'] = RAM_area-RAM_SB_area - RAM_CB_area - cim_area
+
+
 
 
         if self.lb_height != 0.0:  
@@ -7743,7 +7750,8 @@ class _BoothR2Adder(_SizableCircuit):
         # assert FAs_per_flut <= 2      
         # how many Fluts do we have in a cluster?
     def generate(self, subcircuit_filename, min_tran_width, use_finfet):
-        self.transistor_names, self.wire_names = pim_subcircuits.gen_BoothR2Adder(subcircuit_filename, self.name)
+        # self.transistor_names, self.wire_names = pim_subcircuits.gen_BoothR2Adder(subcircuit_filename, self.name)
+        self.transistor_names, self.wire_names = pim_subcircuits.gen_Bobby2Adder(subcircuit_filename)
         print("Generated gen_BoothR2Adder")
         print(self.transistor_names)
         
@@ -7764,7 +7772,8 @@ class _BoothR2Adder(_SizableCircuit):
         
     def generate_top(self):
         print("Generating top-level submodule for BoothR2Adder")
-        self.top_spice_path = top_level.generate_boothr2adder_top(self.name)
+        # self.top_spice_path = top_level.generate_boothr2adder_top(self.name)
+        self.top_spice_path = top_level.generate_bob2adder_top(self.name)
         return
         
     def update_area(self, area_dict, width_dict):
@@ -7774,10 +7783,17 @@ class _BoothR2Adder(_SizableCircuit):
         # # fout.close()
         # json.dump(area_dict, fout)
         # fout.close()
-        nand2_area = area_dict['nand2_BoothR2Adder'] * 12
-        nand3_area = area_dict['nand3_BoothR2Adder'] * 6
-        inv_area = area_dict['inv_BoothR2Adder'] * 7
-        nor2_area = area_dict['nor2_BoothR2Adder'] * 2
+        # nand2_area = area_dict['nand2_BoothR2Adder'] * 12
+        # nand3_area = area_dict['nand3_BoothR2Adder'] * 6
+        # inv_area = area_dict['inv_BoothR2Adder'] * 7
+        # nor2_area = area_dict['nor2_BoothR2Adder'] * 2
+
+        nand2_area = area_dict['nand2_BoothR2Adder']*3
+        nand3_area = 0
+        #Tgates are sized the same as inv. XOR gates too (1XOR Gate = 6Inv)
+        inv_area = area_dict['inv_BoothR2Adder']*28
+        nor2_area = area_dict['nor2_BoothR2Adder']*1
+
         total_area = nand2_area + nand3_area + inv_area + nor2_area
         area_dict[self.name] = total_area
         width_dict[self.name] = math.sqrt(total_area)
@@ -7792,7 +7808,7 @@ class _OpEncoder(_SizableCircuit):
         self.width = 0
     
     def generate(self, subcircuit_filename, min_tran_width, use_finfet=False):
-        self.transistor_names, self.wire_names = pim_subcircuits.gen_opencoder(subcircuit_filename, self.name)
+        self.transistor_names, self.wire_names = pim_subcircuits.gen_opencoder2(subcircuit_filename, self.name)
         print("Generated OpEncoder")
         for name in self.transistor_names:
             self.initial_transistor_sizes[str(name)] = 1
@@ -7800,7 +7816,7 @@ class _OpEncoder(_SizableCircuit):
     
     def generate_top(self):
         print("Generating top-level submodule for OpEncoder")
-        self.top_spice_path = top_level.generate_pim_opencoder_top(self.name)
+        self.top_spice_path = top_level.generate_pim_opencoder2_top(self.name)
         return        
 
     def update_area(self, area_dict, width_dict):
@@ -7810,10 +7826,12 @@ class _OpEncoder(_SizableCircuit):
         # # fout.close()
         # json.dump(area_dict, fout)
         # fout.close()
-        nand2_area = area_dict['nand2_opencoder'] * 5
-        nand3_area = area_dict['nand3_opencoder'] * 2
+        # nand2_area = area_dict['nand2_opencoder'] * 5
+        # nand3_area = area_dict['nand3_opencoder'] * 2
         inv_area = area_dict['inv_opencoder'] * 2
-        total_area = nand2_area + nand3_area + inv_area
+        tgate_area = area_dict['tgate_opencoder'] * 4
+
+        total_area = tgate_area + inv_area
         area_dict[self.name] = total_area
         width_dict[self.name] = math.sqrt(total_area)
 
@@ -7900,6 +7918,15 @@ class _OpMux(_SizableCircuit):
                 self.initial_transistor_sizes['nor2_pim_opmux_comb_32_pmos'] = 1
                 self.initial_transistor_sizes['inv_pim_opmux_comb_32_nmos'] = 1
                 self.initial_transistor_sizes['inv_pim_opmux_comb_32_pmos'] = 1
+            case 64:
+                self.initial_transistor_sizes['nand3_pim_opmux_comb_64_nmos'] = 1
+                self.initial_transistor_sizes['nand3_pim_opmux_comb_64_pmos'] = 1
+                self.initial_transistor_sizes['nand2_pim_opmux_comb_64_nmos'] = 1
+                self.initial_transistor_sizes['nand2_pim_opmux_comb_64_pmos'] = 1
+                self.initial_transistor_sizes['nor2_pim_opmux_comb_64_nmos'] = 1
+                self.initial_transistor_sizes['nor2_pim_opmux_comb_64_pmos'] = 1
+                self.initial_transistor_sizes['inv_pim_opmux_comb_64_nmos'] = 1
+                self.initial_transistor_sizes['inv_pim_opmux_comb_64_pmos'] = 1
         # for name in self.transistor_names:
         #     self.initial_transistor_sizes[str(name)] = 1
         return self.initial_transistor_sizes
@@ -7926,6 +7953,15 @@ class _OpMux(_SizableCircuit):
                 nand3_area *= 15
                 nor2_area *= 4
                 inv_area *= 59
+            case 64:
+                nand2_area = area_dict['nand2_pim_opmux_comb_64']
+                nand3_area = area_dict['nand3_pim_opmux_comb_64']
+                nor2_area = area_dict['nor2_pim_opmux_comb_64']
+                inv_area = area_dict['inv_pim_opmux_comb_64']
+                nand2_area *= 221
+                nand3_area *= 7
+                nor2_area *= 5
+                inv_area *= 114
 
         total_area = nand2_area + nand3_area + nor2_area + inv_area
         area_dict[self.name] = total_area
@@ -8223,14 +8259,18 @@ class _CIM(_CompoundCircuit):
     
     def update_area(self, area_dict, width_dict):
         alu_area = self.alu.update_area(area_dict, width_dict)
+        area_dict['alu_total'] = (self.num_pes*alu_area)
         opmux_area = self.opmux.update_area(area_dict, width_dict)
+        area_dict['opmux_total'] = opmux_area
         # opencoder_area = self.opencoder.update_area(area_dict, width_dict)
         pipeline_area = self.pipeline.update_area(area_dict, width_dict)
-        netnode_area = self.pipeline.update_area(area_dict, width_dict)
+        area_dict['pipeline_total'] = pipeline_area
+        netnode_area = self.netnode.update_area(area_dict, width_dict)
+        area_dict['netnode_total'] = netnode_area
         # b2adder_area = self.b2adder.update_area(area_dict, width_dict)
 
         total_area = opmux_area + pipeline_area + (self.num_pes*alu_area) + netnode_area
-
+        
         area_dict['cim'] = total_area
         width_dict['cim'] = math.sqrt(total_area)
         return total_area
@@ -8241,6 +8281,7 @@ class _CIM(_CompoundCircuit):
     def print_details(self, report_file):
         utils.print_and_write(report_file, "-CIM Tile Details:")
         utils.print_and_write(report_file, "    Number of PEs=" + str(self.num_pes))
+
     
     def update_power_delay(self, spice_interface: spice.SpiceInterface, parameter_dict):
         #get power of flipflops first
@@ -8259,5 +8300,5 @@ class _CIM(_CompoundCircuit):
         print("CIM subcircuit delays and powers:")
         print(alu_del, ',', alu_pow, '\t', opm_del, ',', opm_pow, '\t', pil_del, ',', pil_pow, '\t', net_del, ',', net_pow)
         self.total_delay = max(alu_del, opm_del, net_del)
-        self.total_power = (alu_pow*self.num_pes) + opm_pow, + pil_pow + net_pow
+        self.total_power = (alu_pow*self.num_pes) + opm_pow + pil_pow + net_pow
         return self.total_delay, self.total_power

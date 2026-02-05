@@ -43,8 +43,23 @@ def compare_tfall_trise(tfall, trise):
         delay = -1.0
         
     return delay
-   
-    
+  
+
+def print_area_and_delay_row(report_file, area_dict, circuit_name, area_dict_key, delay, power, trise=0.0, tfall=0.0):
+    row = "  " + circuit_name.ljust(FIRS_COL_WIDTH)
+    print(row)
+    row += str(round(area_dict[area_dict_key]/1e6,3)).ljust(MIDL_COL_WIDTH)
+    print(row)
+    row += str(round(delay/1e-12,4)).ljust(MIDL_COL_WIDTH)
+    print(row)
+    row += str(round(tfall/1e-12,4)).ljust(MIDL_COL_WIDTH)
+    print(row)
+    row += str(round(trise/1e-12,4)).ljust(MIDL_COL_WIDTH)
+    print(row)
+    row += str(round((power/1e-6),8)).ljust(LAST_COL_WIDTH)
+    print(row)
+    print_and_write(report_file, row)
+
 def print_area_and_delay(report_file, fpga_inst):
     """ Print area and delay per subcircuit """
     
@@ -169,12 +184,11 @@ def print_area_and_delay(report_file, fpga_inst):
             str(round(hardblock.mux.delay/1e-12,4)).ljust(MIDL_COL_WIDTH) + str(round(hardblock.mux.tfall/1e-12,4)).ljust(MIDL_COL_WIDTH) + str(round(hardblock.mux.trise/1e-12,4)).ljust(MIDL_COL_WIDTH) + 
             str(hardblock.mux.power/1e-6).ljust(LAST_COL_WIDTH))
 
+    #Nathaniel Fredricks
     if fpga_inst.specs.enable_bram_block == 0:
-        print_and_write(report_file, "\n")
-        return 
-
-
-    # RAM
+        return
+    
+    # RAMN
 
     # RAM local input mux
     print_and_write(report_file, "  " + fpga_inst.RAM.RAM_local_mux.name.ljust(FIRS_COL_WIDTH) + str(round(fpga_inst.area_dict["ram_local_mux_total"]/1e6,3)).ljust(MIDL_COL_WIDTH) + 
@@ -275,7 +289,22 @@ def print_area_and_delay(report_file, fpga_inst):
 
     print_and_write(report_file, "\n")
 
-
+    if(fpga_inst.specs.enable_cim!=True):
+        return
+    try:
+        #CIM
+        print_area_and_delay_row(report_file, area_dict, fpga_inst.RAM.cim.name, 'cim', fpga_inst.RAM.cim.total_delay, fpga_inst.RAM.cim.total_power)
+        #ALU
+        print_area_and_delay_row(report_file, area_dict, fpga_inst.RAM.cim.alu.name, fpga_inst.RAM.cim.alu.name, fpga_inst.RAM.cim.alu.totaldelay, fpga_inst.RAM.cim.alu.totalpower)
+        #Opmux
+        print_area_and_delay_row(report_file, area_dict, fpga_inst.RAM.cim.opmux.name, fpga_inst.RAM.cim.opmux.name, fpga_inst.RAM.cim.opmux.totaldelay, fpga_inst.RAM.cim.opmux.totalpower)
+        #Network Node
+        print_area_and_delay_row(report_file, area_dict, fpga_inst.RAM.cim.netnode.name, fpga_inst.RAM.cim.netnode.name, fpga_inst.RAM.cim.netnode.totaldelay, fpga_inst.RAM.cim.netnode.totalpower)
+        #Pipeline
+        print_area_and_delay_row(report_file, area_dict, fpga_inst.RAM.cim.pipeline.namne, fpga_inst.RAM.cim.pipeline.name, fpga_inst.RAM.cim.pipeline.totaldelay, fpga_inst.RAM.cim.pipeline.totalpower)
+    except Exception as e:
+        print(e)
+    
 def print_power(report_file, fpga_inst):
     """ Print power per subcircuit """
     
@@ -364,6 +393,9 @@ def print_block_area(report_file, fpga_inst):
                 writedrivertotal = fpga_inst.area_dict["writedriver_total"] /1000000 
 
                 samptotal = fpga_inst.area_dict["samp_total"] /1000000 
+                #nathaniel Fredricks
+                # if fpga_inst.specs.enable_cim:
+
             else:
                 cstotal = fpga_inst.area_dict["cs_total"] /1000000 
 
@@ -413,6 +445,19 @@ def print_block_area(report_file, fpga_inst):
                 print_and_write(report_file, "  Precharge Total".ljust(20) + str(round(prechargetotal,3)).ljust(20) + str(round(prechargetotal/ram*100,3)) + "%")
                 print_and_write(report_file, "  Write Drivers".ljust(20) + str(round(writedrivertotal,3)).ljust(20) + str(round(writedrivertotal/ram*100,3)) + "%")
                 print_and_write(report_file, "  Sense Amp Total ".ljust(20) + str(round(samptotal,3)).ljust(20) + str(round(samptotal/ram*100,3)) + "%")
+                #Nathaniel Fredricks
+                if fpga_inst.specs.enable_cim:
+                    cimtotal = fpga_inst.area_dict['cim'] / 1000000
+                    print_and_write(report_file, "  CIM total".ljust(20) + str(round(cimtotal,3)).ljust(20) + str(round(100*cimtotal/ram, 3)) + '%')
+                    alutotal = fpga_inst.area_dict['alu_total'] / 1000000
+                    print_and_write(report_file, "  ALU total".ljust(20) + str(round(alutotal,3)).ljust(20) + str(round(100*alutotal/ram, 3)) + '%')
+                    opmuxtotal = fpga_inst.area_dict['opmux_total'] / 1000000
+                    print_and_write(report_file, "  Opmux total".ljust(20) + str(round(opmuxtotal,3)).ljust(20) + str(round(100*opmuxtotal/ram, 3)) + '%')
+                    pipelinetotal = fpga_inst.area_dict['pipeline_total'] / 1000000
+                    print_and_write(report_file, "  Pipeline total".ljust(20) + str(round(pipelinetotal,3)).ljust(20) + str(round(100*pipelinetotal/ram, 3)) + '%')
+                    netnodetotal = fpga_inst.area_dict['netnode_total'] / 1000000
+                    print_and_write(report_file, "  Netnode total".ljust(20) + str(round(netnodetotal,3)).ljust(20) + str(round(100*netnodetotal/ram, 3)) + '%')
+                    
             else:
                 print_and_write(report_file, "  Column selectors".ljust(20) + str(round(cstotal,3)).ljust(20) + str(round(cstotal/ram*100,3)) + "%")
                 print_and_write(report_file, "  Write Drivers".ljust(20) + str(round(writedrivertotal,3)).ljust(20) + str(round(writedrivertotal/ram*100,3)) + "%")
